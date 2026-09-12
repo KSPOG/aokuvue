@@ -1,0 +1,107 @@
+package app.kspani;
+
+import app.kspani.app.AppContext;
+import app.kspani.app.DiagnosticLog;
+import app.kspani.ui.MainWindow;
+import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.animation.FadeTransition;
+import javafx.animation.Interpolator;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.ParallelTransition;
+import javafx.animation.PauseTransition;
+import javafx.animation.Timeline;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.Label;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
+import javafx.util.Duration;
+
+public final class Main extends Application {
+    private static final long MINIMUM_SPLASH_MILLIS = 1_400;
+    private AppContext context;
+
+    private record SplashHandle(Stage stage, StackPane root, Label status, ProgressBar progress) {}
+
+    @Override
+    public void start(Stage stage) {
+        DiagnosticLog.installSystemCapture();
+        stage.initStyle(StageStyle.UNDECORATED);
+        SplashHandle splash=createSplash();
+        long splashStarted=System.nanoTime();
+        splash.stage().show();
+        Platform.runLater(()->initializeMainWindow(stage,splash,splashStarted));
+    }
+
+    private void initializeMainWindow(Stage stage,SplashHandle splash,long splashStarted) {
+        context=AppContext.create();
+        MainWindow root=new MainWindow(context);
+        Scene scene=new Scene(root,1500,900,Color.web("#0A0A0F"));
+        var css = Main.class.getResource("/styles/aokuvue.css");
+        if (css != null) scene.getStylesheets().add(css.toExternalForm());
+        stage.setTitle("AOKVUE");
+        var icon = Main.class.getResource("/images/aokuvue-icon.png");
+        if (icon != null) stage.getIcons().add(new Image(icon.toExternalForm()));
+        stage.setMinWidth(1100);
+        stage.setMinHeight(700);
+        stage.setScene(scene);
+        stage.setOpacity(0);
+        stage.show();
+        stage.centerOnScreen();
+        splash.status().setText("Loading your AOKVUE library…");
+
+        root.initialContentReady().whenComplete((ignored,error)->Platform.runLater(()->{
+            long elapsed=(System.nanoTime()-splashStarted)/1_000_000L;
+            PauseTransition minimumDisplay=new PauseTransition(Duration.millis(Math.max(0,MINIMUM_SPLASH_MILLIS-elapsed)));
+            minimumDisplay.setOnFinished(event->{
+                splash.status().setText(error==null?"Your world is ready":"Opening AOKVUE…");
+                splash.progress().setProgress(1);
+                PauseTransition settle=new PauseTransition(Duration.millis(220));
+                settle.setOnFinished(done->revealMainWindow(stage,root,splash));
+                settle.play();
+            });
+            minimumDisplay.play();
+        }));
+    }
+
+    private void revealMainWindow(Stage stage,MainWindow root,SplashHandle splash){
+        Timeline windowFade=new Timeline(
+                new KeyFrame(Duration.ZERO,new KeyValue(stage.opacityProperty(),0)),
+                new KeyFrame(Duration.millis(560),new KeyValue(stage.opacityProperty(),1, Interpolator.EASE_BOTH)));
+        FadeTransition splashFade=new FadeTransition(Duration.millis(520),splash.root());
+        splashFade.setFromValue(1);splashFade.setToValue(0);
+        ParallelTransition transition=new ParallelTransition(windowFade,splashFade);
+        transition.setOnFinished(event->{splash.stage().setAlwaysOnTop(false);splash.stage().close();root.requestFocus();});
+        transition.play();
+    }
+
+    private SplashHandle createSplash(){
+        ImageView art=new ImageView();var backdrop=Main.class.getResource("/images/aokuvue-moonlight.png");if(backdrop!=null)art.setImage(new Image(backdrop.toExternalForm(),760,430,false,true));art.setFitWidth(760);art.setFitHeight(430);art.setPreserveRatio(false);
+        StackPane veil=new StackPane();veil.setStyle("-fx-background-color:rgba(4,3,10,.38);");
+        Label wordmark=new Label("A O K V U E");wordmark.setStyle("-fx-font-family:'Georgia';-fx-font-size:58px;-fx-text-fill:#F3EFFF;-fx-effect:dropshadow(gaussian,#8E7CFF,18,.25,0,0);");
+        Label tagline=new Label("—   E n t e r   t h e   U n s e e n .   —");tagline.setStyle("-fx-font-family:'Georgia';-fx-font-size:16px;-fx-text-fill:#EAE7F5;");
+        Label status=new Label("Preparing AOKVUE…");status.setStyle("-fx-font-size:12px;-fx-text-fill:#C7C0DF;");
+        ProgressBar progress=new ProgressBar();progress.setPrefWidth(260);progress.setProgress(-1);progress.setStyle("-fx-accent:#8E7CFF;");
+        VBox stack=new VBox(15,wordmark,tagline,progress,status);stack.setAlignment(Pos.CENTER);stack.setPadding(new Insets(48));
+        StackPane root=new StackPane(art,veil,stack);root.setStyle("-fx-background-color:#0A0A0F;-fx-border-color:#5B2A86;-fx-border-radius:10px;-fx-background-radius:10px;");
+        Scene scene=new Scene(root,760,430,Color.TRANSPARENT);Stage splash=new Stage(StageStyle.TRANSPARENT);splash.setScene(scene);splash.setAlwaysOnTop(true);splash.centerOnScreen();return new SplashHandle(splash,root,status,progress);
+    }
+
+    @Override
+    public void stop() {
+        if (context != null) context.close();
+    }
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+}

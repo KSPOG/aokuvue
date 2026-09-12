@@ -1,0 +1,10 @@
+.gradle/
+.gradle-local/
+build/
+dist/
+.tools/
+.research/
+.idea/
+*.iml
+*.log
+out/

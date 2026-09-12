@@ -1,0 +1,12 @@
+# AniList token is normally filled by the browser/Auth Pin flow.
+anilist.accessToken=
+
+# Episode and playback sources are intentionally disabled.
+
+player.watchPercentage=0.85
+player.autoPlay=true
+player.seekSeconds=10
+player.defaultSpeed=1.0
+
+ui.startTab=HOME
+ui.compactCards=false

@@ -1,0 +1,49 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+}
+
+group = 'app.kspani'
+version = '1.5.12'
+
+base {
+    archivesName = 'Aokuvue'
+}
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+javafx {
+    version = '21.0.8'
+    modules = ['javafx.controls', 'javafx.graphics', 'javafx.media', 'javafx.web']
+}
+
+dependencies {
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
+    implementation 'org.xerial:sqlite-jdbc:3.49.1.0'
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+application {
+    mainClass = 'app.kspani.Main'
+    applicationName = 'Aokuvue'
+    applicationDefaultJvmArgs = ['-Dfile.encoding=UTF-8', '-Dprism.order=d3d,sw']
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

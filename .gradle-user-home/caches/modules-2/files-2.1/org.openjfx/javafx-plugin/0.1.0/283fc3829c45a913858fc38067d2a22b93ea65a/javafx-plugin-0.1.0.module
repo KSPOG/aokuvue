@@ -1,0 +1,109 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "org.openjfx",
+    "module": "javafx-plugin",
+    "version": "0.1.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.3"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "javafx-plugin-0.1.0.jar",
+          "url": "javafx-plugin-0.1.0.jar",
+          "size": 16013,
+          "sha512": "bcc4d23867a305f9aebc85a2c35d98e291e700d53278e1bd07ee713de5c83d4c2de4cdf87c798065b3ddbe5eb12fb8c194ed901232e08013e39dbc553d6f69a0",
+          "sha256": "5eaeec0799b440646b0ca4cfda219a32db6be2ba5792d032a0da4a3a5c388fab",
+          "sha1": "72153b9f5e070b72b7cb88de3a18ddf961b65929",
+          "md5": "21bb1c618aa6ac4f232265f456efcd09"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 11,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "com.google.gradle",
+          "module": "osdetector-gradle-plugin",
+          "version": {
+            "requires": "1.7.3"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "javafx-plugin-0.1.0.jar",
+          "url": "javafx-plugin-0.1.0.jar",
+          "size": 16013,
+          "sha512": "bcc4d23867a305f9aebc85a2c35d98e291e700d53278e1bd07ee713de5c83d4c2de4cdf87c798065b3ddbe5eb12fb8c194ed901232e08013e39dbc553d6f69a0",
+          "sha256": "5eaeec0799b440646b0ca4cfda219a32db6be2ba5792d032a0da4a3a5c388fab",
+          "sha1": "72153b9f5e070b72b7cb88de3a18ddf961b65929",
+          "md5": "21bb1c618aa6ac4f232265f456efcd09"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "javafx-plugin-0.1.0-javadoc.jar",
+          "url": "javafx-plugin-0.1.0-javadoc.jar",
+          "size": 327905,
+          "sha512": "8a2cda23a352f89e2d7fcff11249b6da2b992a42f0a3fa282976f7973800f11f64eba8b0139afd62b4a2b413a99d30ad977f29b8576beb124d055b85dd4f28bd",
+          "sha256": "26f46f1dd6c8ba6c90e956d836f1ebcdfb22bfa39c1c00da43dec8c87fe234b8",
+          "sha1": "6aa64c030b8f288a7bce4da55df7b0f9843f9a83",
+          "md5": "b618732f6b9ac79175ad92193e116d32"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "javafx-plugin-0.1.0-sources.jar",
+          "url": "javafx-plugin-0.1.0-sources.jar",
+          "size": 11605,
+          "sha512": "75d1aa812fd83efede57c9793b7a35966daaa4071237acfd73b1ef44c5939a46391a2c0c1d891af923da6ca83cffd3132e475379847238e77160cb585a64883a",
+          "sha256": "76e955777a995027a1a9e676c897b27ee72db32580b980d5b0f6cd91421bdf8b",
+          "sha1": "9b3652a77ce438af78afbb94afe48bdba712460a",
+          "md5": "7df2c287d6b929e0820319008616bd43"
+        }
+      ]
+    }
+  ]
+}
