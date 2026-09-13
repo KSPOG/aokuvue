@@ -86,12 +86,27 @@ public final class EverythingMoeProviderDirectory {
                     List<Entry> top = successful(pageResponse) ? parseEntries(pageResponse.body()) : List.of();
                     List<Entry> low = successful(lowResponse) ? parseJsonEntries(lowResponse.body()) : List.of();
                     List<Entry> entries = merge(top, low);
-                    boolean complete = entries.size() >= 93;
-                    List<ProviderSite> resolved = classify(complete ? entries : FALLBACK, complete);
+
+                    // The EverythingMoe directory is live data: the number of entries changes as
+                    // providers are added/removed. Requiring it to exactly match the bundled
+                    // fallback size made otherwise healthy live snapshots look incomplete.
+                    boolean usableLiveSnapshot = hasUsableLiveSnapshot(entries);
+                    List<ProviderSite> resolved = classify(
+                            usableLiveSnapshot ? entries : FALLBACK,
+                            usableLiveSnapshot);
                     latest = resolved;
                     return resolved;
                 })
                 .exceptionally(error -> latestSnapshot());
+    }
+
+    private static boolean hasUsableLiveSnapshot(List<Entry> entries) {
+        if (entries == null || entries.isEmpty()) return false;
+        if (FALLBACK.isEmpty()) return entries.size() >= 20;
+
+        // Accept normal directory churn while still rejecting a clearly partial/blocked response.
+        int minimum = Math.max(20, (int) Math.ceil(FALLBACK.size() * 0.60));
+        return entries.size() >= minimum;
     }
 
     public OptionalInt rankFor(AnimeSource source) {
