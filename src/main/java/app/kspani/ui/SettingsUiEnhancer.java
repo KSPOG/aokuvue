@@ -1,7 +1,9 @@
 package app.kspani.ui;
 
+import app.kspani.app.AppVersion;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -9,6 +11,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -20,12 +24,14 @@ import java.util.List;
 /**
  * Small presentation upgrades for settings controls that are created lazily by MainWindow.
  *
- * The Player settings page is rebuilt when it is opened, so this enhancer runs after JavaFX
- * action events and decorates the watch threshold control without coupling playback state to UI.
+ * Settings are rebuilt when the page is opened, so this enhancer runs after JavaFX action events
+ * and decorates those controls without coupling playback/runtime metadata to MainWindow.
  */
 public final class SettingsUiEnhancer {
     private static final String WATCH_THRESHOLD_ENHANCED =
             SettingsUiEnhancer.class.getName() + ".watchThresholdEnhanced";
+    private static final String APPEARANCE_VERSION_ENHANCED =
+            SettingsUiEnhancer.class.getName() + ".appearanceVersionEnhanced";
 
     private SettingsUiEnhancer() {}
 
@@ -41,6 +47,9 @@ public final class SettingsUiEnhancer {
         for (Node child : List.copyOf(parent.getChildrenUnmodifiable())) {
             if (child instanceof Slider slider && isWatchThreshold(slider)) {
                 enhanceWatchThreshold(slider);
+            }
+            if (child instanceof TabPane tabPane) {
+                enhanceAppearanceVersion(tabPane);
             }
             if (child instanceof Parent nested) enhanceTree(nested);
         }
@@ -126,6 +135,36 @@ public final class SettingsUiEnhancer {
                 field.getChildren().set(index, row);
                 field.getChildren().add(index + 1, hint);
             }
+        }
+    }
+
+    private static void enhanceAppearanceVersion(TabPane tabPane) {
+        if (Boolean.TRUE.equals(tabPane.getProperties().get(APPEARANCE_VERSION_ENHANCED))) return;
+
+        for (Tab tab : tabPane.getTabs()) {
+            if (!"Appearance".equalsIgnoreCase(tab.getText())) continue;
+            if (!(tab.getContent() instanceof VBox appearance)) return;
+
+            Label kicker = new Label("AOKUVUE / ABOUT");
+            kicker.getStyleClass().add("section-kicker");
+
+            Label title = new Label("Application version");
+            title.getStyleClass().add("section-title");
+
+            Label version = new Label("Version " + AppVersion.current());
+            version.getStyleClass().add("fact-value");
+
+            Label detail = new Label("Current installed AOKUVUE build.");
+            detail.setWrapText(true);
+            detail.getStyleClass().add("source-status");
+
+            VBox versionCard = new VBox(9, kicker, title, version, detail);
+            versionCard.getStyleClass().add("settings-card");
+            versionCard.setPadding(new Insets(18));
+
+            appearance.getChildren().add(versionCard);
+            tabPane.getProperties().put(APPEARANCE_VERSION_ENHANCED, Boolean.TRUE);
+            return;
         }
     }
 
