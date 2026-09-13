@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'app.kspani'
-version = '1.5.14'
+version = '1.5.15'
 
 base {
     archivesName = 'Aokuvue'
