@@ -46,6 +46,7 @@ public final class AppConfig {
     private void defaults() {
         putIfMissing("anilist.accessToken", "");
         removeRetiredSourceSettings();
+        putIfMissing("content.includeAdult", "true");
         putIfMissing("player.watchPercentage", "0.85");
         putIfMissing("player.autoPlay", "true");
         putIfMissing("player.seekSeconds", "10");

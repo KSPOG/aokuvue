@@ -44,6 +44,12 @@ application {
     applicationDefaultJvmArgs = ['-Dfile.encoding=UTF-8', '-Dprism.order=d3d,sw']
 }
 
+tasks.named('jar') {
+    manifest {
+        attributes 'Implementation-Title': 'Aokuvue', 'Implementation-Version': project.version
+    }
+}
+
 tasks.named('test') {
     useJUnitPlatform()
 }

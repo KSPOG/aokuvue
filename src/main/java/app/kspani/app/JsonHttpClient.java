@@ -13,6 +13,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 public final class JsonHttpClient {
+    private static final int MAX_RETRIES = 2;
+
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
@@ -28,8 +30,7 @@ public final class JsonHttpClient {
                 .header("Accept", "application/json")
                 .header("User-Agent", "Aokuvue/1.5.14");
         headers.forEach(b::header);
-        return client.sendAsync(b.build(), HttpResponse.BodyHandlers.ofString())
-                .thenApply(this::parseResponse);
+        return sendJsonWithRetry(b.build(), 0);
     }
 
     public CompletableFuture<JsonNode> postJson(URI uri, JsonNode body, Map<String, String> headers) {
@@ -48,16 +49,13 @@ public final class JsonHttpClient {
             String body = response.body() == null ? "" : response.body().stripLeading();
             String contentType = response.headers().firstValue("Content-Type").orElse("");
             boolean json = contentType.toLowerCase().contains("json") || body.startsWith("{") || body.startsWith("[");
-            boolean transientFailure = response.statusCode() == 429 || response.statusCode() >= 500 || !json;
-            if (transientFailure && attempt < 2) {
-                return CompletableFuture.supplyAsync(() -> request,
-                                CompletableFuture.delayedExecutor(500L * (attempt + 1), TimeUnit.MILLISECONDS))
-                        .thenCompose(next -> sendJsonWithRetry(next, attempt + 1));
+            boolean transientFailure = shouldRetry(response.statusCode()) || !json;
+            if (transientFailure && attempt < MAX_RETRIES) {
+                return delayed(request, attempt).thenCompose(next -> sendJsonWithRetry(next, attempt + 1));
             }
             return CompletableFuture.completedFuture(parseResponse(response));
         });
     }
-
 
     public CompletableFuture<String> getText(URI uri, Map<String, String> headers) {
         HttpRequest.Builder b = HttpRequest.newBuilder(uri)
@@ -66,13 +64,7 @@ public final class JsonHttpClient {
                 .header("Accept", "text/plain,text/vtt,application/x-subrip,*/*")
                 .header("User-Agent", "Aokuvue/1.5.14");
         headers.forEach(b::header);
-        return client.sendAsync(b.build(), HttpResponse.BodyHandlers.ofString())
-                .thenApply(response -> {
-                    if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                        throw new IllegalStateException("HTTP " + response.statusCode() + " while loading text resource.");
-                    }
-                    return response.body();
-                });
+        return sendTextWithRetry(b.build(), 0, "text resource");
     }
 
     public CompletableFuture<String> getHtml(URI uri, Map<String, String> headers) {
@@ -83,13 +75,37 @@ public final class JsonHttpClient {
                 .header("Accept-Language", "en-US,en;q=0.9")
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Aokuvue/1.5.14");
         headers.forEach(b::header);
-        return client.sendAsync(b.build(), HttpResponse.BodyHandlers.ofString())
-                .thenApply(response -> {
-                    if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                        throw new IllegalStateException("HTTP " + response.statusCode() + " while loading web source.");
-                    }
-                    return response.body();
-                });
+        return sendTextWithRetry(b.build(), 0, "web source");
+    }
+
+    private CompletableFuture<String> sendTextWithRetry(HttpRequest request, int attempt, String resourceName) {
+        return client.sendAsync(request, HttpResponse.BodyHandlers.ofString()).thenCompose(response -> {
+            String body = response.body() == null ? "" : response.body();
+            boolean transientFailure = shouldRetry(response.statusCode()) || body.isBlank();
+            if (transientFailure && attempt < MAX_RETRIES) {
+                return delayed(request, attempt)
+                        .thenCompose(next -> sendTextWithRetry(next, attempt + 1, resourceName));
+            }
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                return CompletableFuture.failedFuture(new IllegalStateException(
+                        "HTTP " + response.statusCode() + " while loading " + resourceName + "."));
+            }
+            if (body.isBlank()) {
+                return CompletableFuture.failedFuture(new IllegalStateException(
+                        "Empty response while loading " + resourceName + "."));
+            }
+            return CompletableFuture.completedFuture(body);
+        });
+    }
+
+    private static boolean shouldRetry(int statusCode) {
+        return statusCode == 408 || statusCode == 425 || statusCode == 429 || statusCode >= 500;
+    }
+
+    private static CompletableFuture<HttpRequest> delayed(HttpRequest request, int attempt) {
+        return CompletableFuture.supplyAsync(
+                () -> request,
+                CompletableFuture.delayedExecutor(500L * (attempt + 1), TimeUnit.MILLISECONDS));
     }
 
     private JsonNode parseResponse(HttpResponse<String> response) {
