@@ -8,6 +8,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
@@ -48,9 +49,23 @@ public final class SettingsUiEnhancer {
             if (child instanceof Slider slider && isWatchThreshold(slider)) {
                 enhanceWatchThreshold(slider);
             }
+
+            if (child instanceof ScrollPane scrollPane && scrollPane.getContent() instanceof Parent content) {
+                enhanceTree(content);
+            }
+
             if (child instanceof TabPane tabPane) {
                 enhanceAppearanceVersion(tabPane);
+                // Tab content is not guaranteed to be present in Parent#getChildrenUnmodifiable
+                // until its tab is selected. Traverse every tab explicitly so Playback is enhanced
+                // even while Appearance is the selected tab.
+                for (Tab tab : tabPane.getTabs()) {
+                    if (tab.getContent() instanceof Parent tabContent) {
+                        enhanceTree(tabContent);
+                    }
+                }
             }
+
             if (child instanceof Parent nested) enhanceTree(nested);
         }
     }
