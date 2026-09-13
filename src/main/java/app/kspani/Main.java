@@ -48,7 +48,7 @@ public final class Main extends Application {
         Scene scene=new Scene(root,1500,900,Color.web("#0A0A0F"));
         var css = Main.class.getResource("/styles/aokuvue.css");
         if (css != null) scene.getStylesheets().add(css.toExternalForm());
-        stage.setTitle("AOKVUE");
+        stage.setTitle("AOKUVUE");
         var icon = Main.class.getResource("/images/aokuvue-icon.png");
         if (icon != null) stage.getIcons().add(new Image(icon.toExternalForm()));
         stage.setMinWidth(1100);
@@ -57,13 +57,13 @@ public final class Main extends Application {
         stage.setOpacity(0);
         stage.show();
         stage.centerOnScreen();
-        splash.status().setText("Loading your AOKVUE library…");
+        splash.status().setText("Loading your AOKUVUE library…");
 
         root.initialContentReady().whenComplete((ignored,error)->Platform.runLater(()->{
             long elapsed=(System.nanoTime()-splashStarted)/1_000_000L;
             PauseTransition minimumDisplay=new PauseTransition(Duration.millis(Math.max(0,MINIMUM_SPLASH_MILLIS-elapsed)));
             minimumDisplay.setOnFinished(event->{
-                splash.status().setText(error==null?"Your world is ready":"Opening AOKVUE…");
+                splash.status().setText(error==null?"Your world is ready":"Opening AOKUVUE…");
                 splash.progress().setProgress(1);
                 PauseTransition settle=new PauseTransition(Duration.millis(220));
                 settle.setOnFinished(done->revealMainWindow(stage,root,splash));
@@ -87,9 +87,9 @@ public final class Main extends Application {
     private SplashHandle createSplash(){
         ImageView art=new ImageView();var backdrop=Main.class.getResource("/images/aokuvue-moonlight.png");if(backdrop!=null)art.setImage(new Image(backdrop.toExternalForm(),760,430,false,true));art.setFitWidth(760);art.setFitHeight(430);art.setPreserveRatio(false);
         StackPane veil=new StackPane();veil.setStyle("-fx-background-color:rgba(4,3,10,.38);");
-        Label wordmark=new Label("A O K V U E");wordmark.setStyle("-fx-font-family:'Georgia';-fx-font-size:58px;-fx-text-fill:#F3EFFF;-fx-effect:dropshadow(gaussian,#8E7CFF,18,.25,0,0);");
+        Label wordmark=new Label("A O K U V U E");wordmark.setStyle("-fx-font-family:'Georgia';-fx-font-size:58px;-fx-text-fill:#F3EFFF;-fx-effect:dropshadow(gaussian,#8E7CFF,18,.25,0,0);");
         Label tagline=new Label("—   E n t e r   t h e   U n s e e n .   —");tagline.setStyle("-fx-font-family:'Georgia';-fx-font-size:16px;-fx-text-fill:#EAE7F5;");
-        Label status=new Label("Preparing AOKVUE…");status.setStyle("-fx-font-size:12px;-fx-text-fill:#C7C0DF;");
+        Label status=new Label("Preparing AOKUVUE…");status.setStyle("-fx-font-size:12px;-fx-text-fill:#C7C0DF;");
         ProgressBar progress=new ProgressBar();progress.setPrefWidth(260);progress.setProgress(-1);progress.setStyle("-fx-accent:#8E7CFF;");
         VBox stack=new VBox(15,wordmark,tagline,progress,status);stack.setAlignment(Pos.CENTER);stack.setPadding(new Insets(48));
         StackPane root=new StackPane(art,veil,stack);root.setStyle("-fx-background-color:#0A0A0F;-fx-border-color:#5B2A86;-fx-border-radius:10px;-fx-background-radius:10px;");

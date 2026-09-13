@@ -45,17 +45,17 @@ public final class FeedbackService {
     }
 
     private CompletableFuture<Void> sendSuggestion(String message) throws IOException {
-        byte[] json = mapper.writeValueAsBytes(payload("**AOKVUE Suggestion**\n" + message, threadName(Kind.SUGGESTION), false));
+        byte[] json = mapper.writeValueAsBytes(payload("**AOKUVUE Suggestion**\n" + message, threadName(Kind.SUGGESTION), false));
         HttpRequest request = HttpRequest.newBuilder(SUGGESTION_WEBHOOK)
                 .timeout(Duration.ofSeconds(25)).header("Content-Type", "application/json")
-                .header("User-Agent", "AOKVUE-Feedback/1.0")
+                .header("User-Agent", "AOKUVUE-Feedback/1.0")
                 .POST(HttpRequest.BodyPublishers.ofByteArray(json)).build();
         return send(request);
     }
 
     private CompletableFuture<Void> sendBug(String message) throws IOException {
         String boundary = "AokuvueBoundary" + UUID.randomUUID().toString().replace("-", "");
-        byte[] payload = mapper.writeValueAsBytes(payload("**AOKVUE Bug Report**\n" + message, threadName(Kind.BUG_REPORT), true));
+        byte[] payload = mapper.writeValueAsBytes(payload("**AOKUVUE Bug Report**\n" + message, threadName(Kind.BUG_REPORT), true));
         byte[] logs = DiagnosticLog.recentText(MAX_LOG_LENGTH).getBytes(StandardCharsets.UTF_8);
         ByteArrayOutputStream body = new ByteArrayOutputStream();
         part(body, boundary, "payload_json", null, "application/json", payload);
@@ -63,7 +63,7 @@ public final class FeedbackService {
         body.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
         HttpRequest request = HttpRequest.newBuilder(BUG_WEBHOOK)
                 .timeout(Duration.ofSeconds(25)).header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .header("User-Agent", "AOKVUE-Feedback/1.0")
+                .header("User-Agent", "AOKUVUE-Feedback/1.0")
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build();
         return send(request);
     }
@@ -80,13 +80,13 @@ public final class FeedbackService {
         value.put("content",content);
         value.put("thread_name",threadName);
         value.put("allowed_mentions",Map.of("parse",List.of()));
-        if(includesLog)value.put("attachments",List.of(Map.of("id",0,"filename","aokuvue-diagnostics.txt","description","Redacted AOKVUE runtime diagnostics")));
+        if(includesLog)value.put("attachments",List.of(Map.of("id",0,"filename","aokuvue-diagnostics.txt","description","Redacted AOKUVUE runtime diagnostics")));
         return value;
     }
 
     private static String threadName(Kind kind) {
         String type=kind==Kind.BUG_REPORT?"Bug Report":"Suggestion";
-        return "AOKVUE " + type + " - " + DateTimeFormatter.ofPattern("uuuu-MM-dd HH-mm 'UTC'").format(ZonedDateTime.now(ZoneOffset.UTC));
+        return "AOKUVUE " + type + " - " + DateTimeFormatter.ofPattern("uuuu-MM-dd HH-mm 'UTC'").format(ZonedDateTime.now(ZoneOffset.UTC));
     }
 
     private static String discordError(HttpResponse<String> response) {

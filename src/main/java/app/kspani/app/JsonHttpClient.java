@@ -26,7 +26,7 @@ public final class JsonHttpClient {
                 .timeout(Duration.ofSeconds(30))
                 .GET()
                 .header("Accept", "application/json")
-                .header("User-Agent", "Aokuvue/1.5.12");
+                .header("User-Agent", "Aokuvue/1.5.14");
         headers.forEach(b::header);
         return client.sendAsync(b.build(), HttpResponse.BodyHandlers.ofString())
                 .thenApply(this::parseResponse);
@@ -38,7 +38,7 @@ public final class JsonHttpClient {
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json")
-                .header("User-Agent", "Aokuvue/1.5.12");
+                .header("User-Agent", "Aokuvue/1.5.14");
         headers.forEach(b::header);
         return sendJsonWithRetry(b.build(), 0);
     }
@@ -64,7 +64,7 @@ public final class JsonHttpClient {
                 .timeout(Duration.ofSeconds(30))
                 .GET()
                 .header("Accept", "text/plain,text/vtt,application/x-subrip,*/*")
-                .header("User-Agent", "Aokuvue/1.5.12");
+                .header("User-Agent", "Aokuvue/1.5.14");
         headers.forEach(b::header);
         return client.sendAsync(b.build(), HttpResponse.BodyHandlers.ofString())
                 .thenApply(response -> {
@@ -81,7 +81,7 @@ public final class JsonHttpClient {
                 .GET()
                 .header("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
                 .header("Accept-Language", "en-US,en;q=0.9")
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Aokuvue/1.5.12");
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Aokuvue/1.5.14");
         headers.forEach(b::header);
         return client.sendAsync(b.build(), HttpResponse.BodyHandlers.ofString())
                 .thenApply(response -> {

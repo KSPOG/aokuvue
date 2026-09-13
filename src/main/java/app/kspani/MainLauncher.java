@@ -3,7 +3,7 @@ package app.kspani;
 import javafx.application.Application;
 
 /**
- * Native-packaging entry point for AOKVUE.
+ * Native-packaging entry point for AOKUVUE.
  *
  * <p>The launcher intentionally does not extend {@link Application}. This prevents the Java
  * launcher from taking its module-path-specific JavaFX startup branch before the classpath

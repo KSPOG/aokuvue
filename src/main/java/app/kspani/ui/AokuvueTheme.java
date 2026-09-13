@@ -1,8 +1,8 @@
 package app.kspani.ui;
 
-/** Central AOKVUE design tokens used by native JavaFX layouts. */
-final class AokvueTheme {
-    private AokvueTheme() {}
+/** Central AOKUVUE design tokens used by native JavaFX layouts. */
+final class AokuvueTheme {
+    private AokuvueTheme() {}
     static final String OBSIDIAN = "#0A0A0F";
     static final String MIDNIGHT = "#141421";
     static final String DEEP_VIOLET = "#2A1740";

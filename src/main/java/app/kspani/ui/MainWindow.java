@@ -243,7 +243,7 @@ public final class MainWindow extends BorderPane {
     }
 
     private Node buildSidebar() {
-        Label brand = new Label("A O K V U E");
+        Label brand = new Label("A O K U V U E");
         brand.getStyleClass().add("app-brand");
         Label brandKind = new Label("ANIME  ×  STORIES  ×  BEYOND");
         brandKind.getStyleClass().add("brand-kind");
@@ -268,7 +268,7 @@ public final class MainWindow extends BorderPane {
         settingsNav.setText("⚙     Settings");
         settingsNav.setOnAction(e -> show(Page.SETTINGS));
         Circle glow = new Circle(37, Color.TRANSPARENT); glow.getStyleClass().add("eclipse-glow");
-        Circle shadow = new Circle(32, Color.web(AokvueTheme.OBSIDIAN)); shadow.setTranslateX(9); shadow.setTranslateY(-5);
+        Circle shadow = new Circle(32, Color.web(AokuvueTheme.OBSIDIAN)); shadow.setTranslateX(9); shadow.setTranslateY(-5);
         StackPane eclipse = new StackPane(glow, shadow); eclipse.setPrefHeight(82);
         Label footer = new Label("S A M E   M O O N .\nD I F F E R E N T\nW O R L D S .");
         footer.getStyleClass().add("sidebar-motto"); footer.setAlignment(Pos.CENTER);
@@ -276,7 +276,7 @@ public final class MainWindow extends BorderPane {
         VBox.setVgrow(spacer, Priority.ALWAYS);
         VBox sidebar = new VBox(18, brandBox, nav, spacer, settingsNav, eclipse, footer);
         sidebar.setPadding(new Insets(30,14,22,14));
-        sidebar.setPrefWidth(AokvueTheme.SIDEBAR_WIDTH); sidebar.setMinWidth(AokvueTheme.SIDEBAR_WIDTH);
+        sidebar.setPrefWidth(AokuvueTheme.SIDEBAR_WIDTH); sidebar.setMinWidth(AokuvueTheme.SIDEBAR_WIDTH);
         sidebar.getStyleClass().add("sidebar");
         return sidebar;
     }
@@ -371,7 +371,7 @@ public final class MainWindow extends BorderPane {
         else body.getChildren().add(homeLoadingState());
 
         Node localContinue = continueWatchingShelf();
-        if (localContinue != null) { body.getChildren().add(localContinue); VBox.setMargin(localContinue,new Insets(0,AokvueTheme.PAGE_GUTTER,0,AokvueTheme.PAGE_GUTTER)); }
+        if (localContinue != null) { body.getChildren().add(localContinue); VBox.setMargin(localContinue,new Insets(0,AokuvueTheme.PAGE_GUTTER,0,AokuvueTheme.PAGE_GUTTER)); }
         if(!featured.isEmpty())addHomeSection(body,trendingRankedShelf(featured));
 
         if (viewer != null) {
@@ -385,12 +385,12 @@ public final class MainWindow extends BorderPane {
         return scroll(body);
     }
 
-    private void addHomeSection(VBox body,Node section){body.getChildren().add(section);VBox.setMargin(section,new Insets(0,AokvueTheme.PAGE_GUTTER,0,AokvueTheme.PAGE_GUTTER));}
+    private void addHomeSection(VBox body,Node section){body.getChildren().add(section);VBox.setMargin(section,new Insets(0,AokuvueTheme.PAGE_GUTTER,0,AokuvueTheme.PAGE_GUTTER));}
 
     private Node homeLoadingState(){
         VBox state=new VBox(12);state.setAlignment(Pos.CENTER);state.setMinHeight(390);state.getStyleClass().add("home-loading");
         if(homeLoadError==null){state.getChildren().addAll(new ProgressIndicator(),new Label("Entering the Unseen…"));}
-        else {Label message=new Label("AniList could not be reached.\n"+homeLoadError);message.setWrapText(true);message.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);Button retry=new Button("Retry AniList");retry.getStyleClass().add("primary-button");retry.setOnAction(e->loadHome());state.getChildren().addAll(new Label("A O K V U E"),message,retry);}
+        else {Label message=new Label("AniList could not be reached.\n"+homeLoadError);message.setWrapText(true);message.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);Button retry=new Button("Retry AniList");retry.getStyleClass().add("primary-button");retry.setOnAction(e->loadHome());state.getChildren().addAll(new Label("A O K U V U E"),message,retry);}
         return state;
     }
 
@@ -403,13 +403,13 @@ public final class MainWindow extends BorderPane {
         categoryShelf.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER); categoryShelf.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         categoryShelf.getStyleClass().add("category-shelf");
         VBox composition = new VBox(14, feature, categoryShelf);
-        VBox.setMargin(categoryShelf,new Insets(0,AokvueTheme.PAGE_GUTTER,0,AokvueTheme.PAGE_GUTTER));
+        VBox.setMargin(categoryShelf,new Insets(0,AokuvueTheme.PAGE_GUTTER,0,AokuvueTheme.PAGE_GUTTER));
         composition.getStyleClass().add("home-composition");
         return composition;
     }
 
     private Node trendingRankedShelf(List<AniMedia> media){
-        Label heading=new Label("Trending on AOKVUE");heading.getStyleClass().add("section-title");Region spacer=new Region();HBox.setHgrow(spacer,Priority.ALWAYS);Button browse=new Button("View All  →");browse.getStyleClass().add("text-button");browse.setOnAction(e->show(Page.ANIME));HBox header=new HBox(10,heading,spacer,browse);header.setAlignment(Pos.CENTER_LEFT);
+        Label heading=new Label("Trending on AOKUVUE");heading.getStyleClass().add("section-title");Region spacer=new Region();HBox.setHgrow(spacer,Priority.ALWAYS);Button browse=new Button("View All  →");browse.getStyleClass().add("text-button");browse.setOnAction(e->show(Page.ANIME));HBox header=new HBox(10,heading,spacer,browse);header.setAlignment(Pos.CENTER_LEFT);
         HBox queue=new HBox(14);List<AniMedia> picks=media.stream().limit(5).toList();for(int i=0;i<picks.size();i++)queue.getChildren().add(spotlightRow(picks.get(i),i+1));
         return new VBox(8,header,queue);
     }
@@ -518,7 +518,7 @@ public final class MainWindow extends BorderPane {
         scrim.getStyleClass().add("hero-scrim");
         scrim.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 
-        Label kicker = new Label("A O K V U E   O R I G I N A L"); kicker.getStyleClass().add("hero-kicker");
+        Label kicker = new Label("A O K U V U E   O R I G I N A L"); kicker.getStyleClass().add("hero-kicker");
         Label title = new Label(media.title()); title.setWrapText(true); title.getStyleClass().add("hero-title");
         Label nativeTitle = new Label(media.nativeTitle()==null?"":media.nativeTitle()); nativeTitle.getStyleClass().add("hero-native"); nativeTitle.setManaged(!nativeTitle.getText().isBlank()); nativeTitle.setVisible(!nativeTitle.getText().isBlank());
         Label editorial = new Label("S T O R I E S   B E Y O N D   T H E   V I S I B L E ."); editorial.getStyleClass().add("hero-editorial");
@@ -579,7 +579,7 @@ public final class MainWindow extends BorderPane {
         HBox filterBar=new HBox(9,filters,genre,year,spacer,new Label("Sort"),sort);filterBar.setAlignment(Pos.CENTER_LEFT);filterBar.getStyleClass().add("browse-filter-bar");
         StackPane heading=bannerHeader(primary.isEmpty()?null:primary.get(0),new VBox(2,title,nativeLine,subtitle)); heading.getStyleClass().add("browse-header");
         VBox body = new VBox(0, heading, filterBar, grid);
-        VBox.setMargin(grid,new Insets(18,AokvueTheme.PAGE_GUTTER,40,AokvueTheme.PAGE_GUTTER)); body.getStyleClass().add("page-body");
+        VBox.setMargin(grid,new Insets(18,AokuvueTheme.PAGE_GUTTER,40,AokuvueTheme.PAGE_GUTTER)); body.getStyleClass().add("page-body");
         return scroll(body);
     }
 
@@ -649,7 +649,7 @@ public final class MainWindow extends BorderPane {
         Label count=new Label(items.size()+" results for “"+query+"”");count.getStyleClass().add("search-count");
         VBox rows=new VBox(8);Runnable showAll=()->{rows.getChildren().clear();for(int i=0;i<items.size();i++)rows.getChildren().add(searchResultRow(items.get(i),i+1));};showAll.run();
         HBox categories=new HBox(10);for(String category:List.of("All","Anime","Movies","OVAs","Originals")){Button button=new Button(category);button.getStyleClass().add(category.equals("All")?"filter-chip-selected":"filter-chip");button.setOnAction(e->{categories.getChildren().forEach(n->{n.getStyleClass().remove("filter-chip-selected");if(!n.getStyleClass().contains("filter-chip"))n.getStyleClass().add("filter-chip");});button.getStyleClass().remove("filter-chip");button.getStyleClass().add("filter-chip-selected");List<AniMedia> filtered=items.stream().filter(m->category.equals("All")||category.equals("Anime")&&m.type()==MediaType.ANIME||category.equals("Movies")&&safe(m.format()).contains("MOVIE")||category.equals("OVAs")&&safe(m.format()).contains("OVA")||category.equals("Originals")&&"ORIGINAL".equalsIgnoreCase(m.sourceMaterial())).toList();rows.getChildren().clear();for(int i=0;i<filtered.size();i++)rows.getChildren().add(searchResultRow(filtered.get(i),i+1));count.setText(filtered.size()+" results for “"+query+"”");});categories.getChildren().add(button);}
-        VBox body=new VBox(16,header,categories,count,rows);body.setPadding(new Insets(0,AokvueTheme.PAGE_GUTTER,40,AokvueTheme.PAGE_GUTTER));VBox.setMargin(header,new Insets(0,-AokvueTheme.PAGE_GUTTER,0,-AokvueTheme.PAGE_GUTTER));body.getStyleClass().add("page-body");return scroll(body);
+        VBox body=new VBox(16,header,categories,count,rows);body.setPadding(new Insets(0,AokuvueTheme.PAGE_GUTTER,40,AokuvueTheme.PAGE_GUTTER));VBox.setMargin(header,new Insets(0,-AokuvueTheme.PAGE_GUTTER,0,-AokuvueTheme.PAGE_GUTTER));body.getStyleClass().add("page-body");return scroll(body);
     }
 
     private Node searchResultRow(AniMedia media,int index){
@@ -684,14 +684,14 @@ public final class MainWindow extends BorderPane {
         body.getChildren().add(head);
         if (media.type() == MediaType.ANIME) {
             SourceRecommendationView recommendation = sourceRecommendation(media);
-            VBox episodes=new VBox(episodeSection(media,recommendation));episodes.setPadding(new Insets(10,AokvueTheme.PAGE_GUTTER,28,AokvueTheme.PAGE_GUTTER));
-            VBox about=new VBox(14,recommendation.root,mediaInfo(media));about.setPadding(new Insets(18,AokvueTheme.PAGE_GUTTER,38,AokvueTheme.PAGE_GUTTER));
+            VBox episodes=new VBox(episodeSection(media,recommendation));episodes.setPadding(new Insets(10,AokuvueTheme.PAGE_GUTTER,28,AokuvueTheme.PAGE_GUTTER));
+            VBox about=new VBox(14,recommendation.root,mediaInfo(media));about.setPadding(new Insets(18,AokuvueTheme.PAGE_GUTTER,38,AokuvueTheme.PAGE_GUTTER));
             if(!media.streamingServices().isEmpty()||!media.streamingEpisodes().isEmpty())about.getChildren().add(officialStreamingPanel(media));
-            List<AniMedia> related=trendingAnime.stream().filter(candidate->candidate.id()!=media.id()&&candidate.genres().stream().anyMatch(media.genres()::contains)).limit(12).toList();VBox more=new VBox(shelf("More Like This",related));more.setPadding(new Insets(16,AokvueTheme.PAGE_GUTTER,30,AokvueTheme.PAGE_GUTTER));
+            List<AniMedia> related=trendingAnime.stream().filter(candidate->candidate.id()!=media.id()&&candidate.genres().stream().anyMatch(media.genres()::contains)).limit(12).toList();VBox more=new VBox(shelf("More Like This",related));more.setPadding(new Insets(16,AokuvueTheme.PAGE_GUTTER,30,AokuvueTheme.PAGE_GUTTER));
             TabPane tabs=new TabPane();tabs.getStyleClass().add("detail-tabs");tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);tabs.getTabs().addAll(new Tab("Episodes",episodes),new Tab("About",about),new Tab("More Like This",more));
             body.getChildren().add(tabs);
         } else {
-            VBox about=new VBox(14,mediaInfo(media));about.setPadding(new Insets(20,AokvueTheme.PAGE_GUTTER,38,AokvueTheme.PAGE_GUTTER));body.getChildren().add(about);
+            VBox about=new VBox(14,mediaInfo(media));about.setPadding(new Insets(20,AokuvueTheme.PAGE_GUTTER,38,AokuvueTheme.PAGE_GUTTER));body.getChildren().add(about);
         }
         return scroll(body);
     }
@@ -700,7 +700,7 @@ public final class MainWindow extends BorderPane {
         StackPane hero=new StackPane();hero.setMinHeight(460);hero.setPrefHeight(500);hero.getStyleClass().add("detail-hero");
         String url=media.bannerImage()==null||media.bannerImage().isBlank()?media.coverImage():media.bannerImage();Region art=new Region();art.setBackground(new Background(new BackgroundImage(new Image(url,true),BackgroundRepeat.NO_REPEAT,BackgroundRepeat.NO_REPEAT,BackgroundPosition.CENTER,new BackgroundSize(100,100,true,true,false,true))));art.setMaxSize(Double.MAX_VALUE,Double.MAX_VALUE);art.getStyleClass().add("detail-hero-art");
         Region scrim=new Region();scrim.setMaxSize(Double.MAX_VALUE,Double.MAX_VALUE);scrim.getStyleClass().add("detail-hero-scrim");
-        Label eyebrow=new Label("A O K V U E   S E L E C T I O N");eyebrow.getStyleClass().add("hero-kicker");
+        Label eyebrow=new Label("A O K U V U E   S E L E C T I O N");eyebrow.getStyleClass().add("hero-kicker");
         Label title=new Label(media.title());title.setWrapText(true);title.getStyleClass().add("detail-hero-title");
         Label nativeTitle=new Label(media.nativeTitle()==null?"":media.nativeTitle());nativeTitle.getStyleClass().add("hero-native");nativeTitle.setManaged(!nativeTitle.getText().isBlank());
         Label desc=new Label(trim(media.description(),430));desc.setWrapText(true);desc.getStyleClass().add("detail-description");
@@ -1167,7 +1167,7 @@ public final class MainWindow extends BorderPane {
         quality.setOnAction(e->{int idx=quality.getSelectionModel().getSelectedIndex();if(idx<0||idx>=qualityVideos.size()||idx==session.playback().selectedVideoIndex())return;app.episodes().setVideoIndex(session.media(),idx);PlaybackResolution changed=new PlaybackResolution(session.playback().source(),session.playback().series(),session.playback().episode(),session.playback().resolved(),qualityVideos.get(idx),idx,session.playback().selectedSubtitleIndex());showPlayer(new PlayerSession(session.media(),session.episodeLoad(),changed));});
         HBox timeline=new HBox(12,time,seek);timeline.setAlignment(Pos.CENTER_LEFT);HBox.setHgrow(seek,Priority.ALWAYS);timeline.getStyleClass().add("player-timeline");
         String posterUrl=session.media().bannerImage()==null||session.media().bannerImage().isBlank()?session.media().coverImage():session.media().bannerImage();ImageView thumb=image(posterUrl,145,88);thumb.setPreserveRatio(false);thumb.getStyleClass().add("player-cover");
-        Label eyebrow=new Label("A O K V U E   S E L E C T I O N");eyebrow.getStyleClass().add("section-kicker");Label mediaTitle=new Label(session.media().title());mediaTitle.getStyleClass().add("player-media-title");Label episodeLabel=new Label("Episode "+session.playback().episode().number()+"  ·  "+safe(session.playback().episode().title()));episodeLabel.getStyleClass().add("player-meta");VBox mediaCopy=new VBox(4,eyebrow,mediaTitle,episodeLabel);mediaCopy.setPrefWidth(300);
+        Label eyebrow=new Label("A O K U V U E   S E L E C T I O N");eyebrow.getStyleClass().add("section-kicker");Label mediaTitle=new Label(session.media().title());mediaTitle.getStyleClass().add("player-media-title");Label episodeLabel=new Label("Episode "+session.playback().episode().number()+"  ·  "+safe(session.playback().episode().title()));episodeLabel.getStyleClass().add("player-meta");VBox mediaCopy=new VBox(4,eyebrow,mediaTitle,episodeLabel);mediaCopy.setPrefWidth(300);
         HBox transport=new HBox(8,prev,rewind,play,forward,next);transport.setAlignment(Pos.CENTER);
         HBox selectors=new HBox(8,new Label("CC"),subtitles,quality,new Label("Speed"),speed,new Label("Vol"),volume,full);selectors.setAlignment(Pos.CENTER_RIGHT);
         Region lowerSpacer=new Region();HBox.setHgrow(lowerSpacer,Priority.ALWAYS);HBox controlsRow=new HBox(18,thumb,mediaCopy,transport,lowerSpacer,selectors);controlsRow.setAlignment(Pos.CENTER_LEFT);
@@ -1399,7 +1399,7 @@ public final class MainWindow extends BorderPane {
     private Node settingsView() {
         VBox body=new VBox(18);body.setPadding(new Insets(24,30,42,30));body.getStyleClass().add("page-body");
         Label title=new Label("Settings");title.getStyleClass().add("browse-title");
-        Label subtitle=new Label("Customize your AOKVUE experience.");subtitle.getStyleClass().add("browse-subtitle");
+        Label subtitle=new Label("Customize your AOKUVUE experience.");subtitle.getStyleClass().add("browse-subtitle");
         Node settingsHeader=brandPageHeader(title,subtitle);
         Slider watchPct=new Slider(0.5,1.0,app.config().getDouble("player.watchPercentage",0.85));watchPct.setShowTickLabels(true);watchPct.setShowTickMarks(true);watchPct.setMajorTickUnit(0.1);
         CheckBox autoPlay=new CheckBox("Autoplay resolved episodes");autoPlay.setSelected(app.config().getBoolean("player.autoPlay",true));
@@ -1446,7 +1446,7 @@ public final class MainWindow extends BorderPane {
         kind.setValue("Suggestion");kind.setMaxWidth(260);
         TextArea message=new TextArea();message.setWrapText(true);message.setPrefRowCount(9);message.setPromptText("Describe your suggestion…");
         Label counter=new Label("0 / 1700");counter.getStyleClass().add("source-status");
-        Label privacy=new Label("Suggestions send only this message. Bug reports also attach a redacted excerpt of recent AOKVUE runtime logs and basic OS/Java version information. Account tokens, URLs, cookies, and webhook values are excluded.");
+        Label privacy=new Label("Suggestions send only this message. Bug reports also attach a redacted excerpt of recent AOKUVUE runtime logs and basic OS/Java version information. Account tokens, URLs, cookies, and webhook values are excluded.");
         privacy.setWrapText(true);privacy.getStyleClass().add("source-status");
         Label result=new Label();result.setWrapText(true);result.getStyleClass().add("source-status");
         ProgressIndicator sending=new ProgressIndicator();sending.setMaxSize(22,22);sending.setVisible(false);sending.setManaged(false);
@@ -1465,7 +1465,7 @@ public final class MainWindow extends BorderPane {
             String text=message.getText()==null?"":message.getText().strip();
             if(text.isBlank()){result.setText("Enter a message before sending.");message.requestFocus();return;}
             FeedbackService.Kind selected="Bug Report".equals(kind.getValue())?FeedbackService.Kind.BUG_REPORT:FeedbackService.Kind.SUGGESTION;
-            submit.setDisable(true);kind.setDisable(true);message.setDisable(true);sending.setManaged(true);sending.setVisible(true);result.setText("Sending securely to the AOKVUE Discord webhook…");
+            submit.setDisable(true);kind.setDisable(true);message.setDisable(true);sending.setManaged(true);sending.setVisible(true);result.setText("Sending securely to the AOKUVUE Discord webhook…");
             app.feedback().submit(selected,text).whenComplete((ignored,error)->Platform.runLater(()->{
                 submit.setDisable(false);kind.setDisable(false);message.setDisable(false);sending.setManaged(false);sending.setVisible(false);
                 if(error==null){message.clear();result.setText(selected==FeedbackService.Kind.BUG_REPORT?"Bug report and redacted diagnostics sent.":"Suggestion sent. Thank you.");status.setText("Feedback sent successfully.");}
@@ -1482,7 +1482,7 @@ public final class MainWindow extends BorderPane {
     }
 
     private VBox themePreviewCard(){
-        Label kicker=new Label("THEME & APPEARANCE");kicker.getStyleClass().add("section-kicker");Label title=new Label("Obsidian");title.getStyleClass().add("section-title");Label description=new Label("The fixed AOKVUE identity · cinematic darkness illuminated by violet moonlight.");description.setWrapText(true);description.getStyleClass().add("source-status");ImageView preview=new ImageView();var resource=MainWindow.class.getResource("/images/aokuvue-moonlight.png");if(resource!=null)preview.setImage(new Image(resource.toExternalForm(),640,170,true,true));preview.setFitHeight(170);preview.setPreserveRatio(true);preview.getStyleClass().add("theme-preview");VBox card=new VBox(9,kicker,title,description,preview);card.getStyleClass().add("settings-card");card.setPadding(new Insets(18));return card;
+        Label kicker=new Label("THEME & APPEARANCE");kicker.getStyleClass().add("section-kicker");Label title=new Label("Obsidian");title.getStyleClass().add("section-title");Label description=new Label("The fixed AOKUVUE identity · cinematic darkness illuminated by violet moonlight.");description.setWrapText(true);description.getStyleClass().add("source-status");ImageView preview=new ImageView();var resource=MainWindow.class.getResource("/images/aokuvue-moonlight.png");if(resource!=null)preview.setImage(new Image(resource.toExternalForm(),640,170,true,true));preview.setFitHeight(170);preview.setPreserveRatio(true);preview.getStyleClass().add("theme-preview");VBox card=new VBox(9,kicker,title,description,preview);card.getStyleClass().add("settings-card");card.setPadding(new Insets(18));return card;
     }
 
 
