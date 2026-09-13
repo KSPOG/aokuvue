@@ -6,10 +6,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
-import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class AnikotoAnimeSourceTest {
     @Test
@@ -57,16 +58,62 @@ final class AnikotoAnimeSourceTest {
                   ]
                 }
                 """);
-        VideoServer server = new VideoServer("anikoto", "one", "Vidstream-2 · SUB", "token", Map.of());
+        VideoServer server = new VideoServer(
+                "anikoto", "one", "Vidstream-2 · SUB", "token", Map.of());
 
         var resolved = AnikotoAnimeSource.parsePlayerSources(
-                server, URI.create("https://megaplay.example/embed/1"), json);
+                server, URI.create("https://megaplay.buzz/stream/s-2/1/sub"), json);
 
+        assertEquals(1, resolved.videos().size());
         assertEquals("hls", resolved.videos().get(0).container());
-        assertEquals(URI.create("https://cdn.example/anime/master.m3u8"), resolved.videos().get(0).uri());
-        assertEquals("https://megaplay.example/", resolved.videos().get(0).headers().get("Referer"));
+        assertEquals(
+                URI.create("https://cdn.example/anime/master.m3u8"),
+                resolved.videos().get(0).uri());
+        assertEquals(
+                "https://megaplay.buzz/",
+                resolved.videos().get(0).headers().get("Referer"));
         assertEquals(1, resolved.subtitles().size());
         assertEquals("English", resolved.subtitles().get(0).language());
-        assertEquals(true, resolved.subtitles().get(0).defaultTrack());
+        assertTrue(resolved.subtitles().get(0).defaultTrack());
+    }
+
+    @Test
+    void acceptsCurrentAndDefensiveMegaPlaySourceShapes() throws Exception {
+        var json = new ObjectMapper().readTree("""
+                {
+                  "sources": [
+                    "https://megap.kotocdn.site/a/master.m3u8",
+                    {"url": "https://media.example/video.mp4", "quality": "1080p"}
+                  ],
+                  "data": {
+                    "links": {"src": "https://media.example/backup/master.m3u8", "label": "720p"},
+                    "captions": [
+                      {"url": "https://media.example/subs/en.vtt", "title": "English", "type": "subtitle"}
+                    ]
+                  }
+                }
+                """);
+        VideoServer server = new VideoServer(
+                "anikoto", "one", "MegaPlay · SUB", "token", Map.of());
+
+        var resolved = AnikotoAnimeSource.parsePlayerSources(
+                server, URI.create("https://megaplay.buzz/stream/s-2/1/sub"), json);
+
+        assertEquals(3, resolved.videos().size());
+        assertEquals("hls", resolved.videos().get(0).container());
+        assertEquals("mp4", resolved.videos().get(1).container());
+        assertEquals(1080, resolved.videos().get(1).quality());
+        assertEquals(720, resolved.videos().get(2).quality());
+        assertEquals("https://megaplay.buzz", resolved.videos().get(0).headers().get("Origin"));
+        assertEquals(1, resolved.subtitles().size());
+        assertEquals("English", resolved.subtitles().get(0).language());
+    }
+
+    @Test
+    void megaPlayMediaHostMatchingRejectsLookalikes() {
+        assertTrue(AnikotoAnimeSource.isMegaPlayMediaHost("megap.kotocdn.site"));
+        assertTrue(AnikotoAnimeSource.isMegaPlayMediaHost("cdn.voltara.click"));
+        assertFalse(AnikotoAnimeSource.isMegaPlayMediaHost("evilkotocdn.site.example"));
+        assertFalse(AnikotoAnimeSource.isMegaPlayMediaHost("notmegaplay.buzz.example"));
     }
 }
