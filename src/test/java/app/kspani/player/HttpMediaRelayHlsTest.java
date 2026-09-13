@@ -50,6 +50,7 @@ final class HttpMediaRelayHlsTest {
         URI remote = URI.create("http://127.0.0.1:" + upstream.getAddress().getPort() + "/master.m3u8");
         try (HttpMediaRelay relay = HttpMediaRelay.start(remote, Map.of(
                 "Referer", "https://provider.example/watch/1",
+                "Origin", "https://provider.example",
                 "Cookie", "session=valid",
                 "User-Agent", "ProviderBrowser"
         ), "hls")) {
@@ -114,6 +115,7 @@ final class HttpMediaRelayHlsTest {
             byte[] bytes
     ) throws IOException {
         boolean authorized = "https://provider.example/watch/1".equals(exchange.getRequestHeaders().getFirst("Referer"))
+                && "https://provider.example".equals(exchange.getRequestHeaders().getFirst("Origin"))
                 && "session=valid".equals(exchange.getRequestHeaders().getFirst("Cookie"))
                 && "ProviderBrowser".equals(exchange.getRequestHeaders().getFirst("User-Agent"));
         if (!authorized) {

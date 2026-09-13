@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 public final class JsonHttpClient {
     private static final int MAX_RETRIES = 2;
+    private static final String APP_USER_AGENT = "Aokuvue/1.5.15";
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient client = HttpClient.newBuilder()
@@ -28,8 +29,8 @@ public final class JsonHttpClient {
                 .timeout(Duration.ofSeconds(30))
                 .GET()
                 .header("Accept", "application/json")
-                .header("User-Agent", "Aokuvue/1.5.14");
-        headers.forEach(b::header);
+                .header("User-Agent", APP_USER_AGENT);
+        applyOverrides(b, headers);
         return sendJsonWithRetry(b.build(), 0);
     }
 
@@ -39,8 +40,8 @@ public final class JsonHttpClient {
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json")
-                .header("User-Agent", "Aokuvue/1.5.14");
-        headers.forEach(b::header);
+                .header("User-Agent", APP_USER_AGENT);
+        applyOverrides(b, headers);
         return sendJsonWithRetry(b.build(), 0);
     }
 
@@ -48,7 +49,9 @@ public final class JsonHttpClient {
         return client.sendAsync(request, HttpResponse.BodyHandlers.ofString()).thenCompose(response -> {
             String body = response.body() == null ? "" : response.body().stripLeading();
             String contentType = response.headers().firstValue("Content-Type").orElse("");
-            boolean json = contentType.toLowerCase().contains("json") || body.startsWith("{") || body.startsWith("[");
+            boolean json = contentType.toLowerCase().contains("json")
+                    || body.startsWith("{")
+                    || body.startsWith("[");
             boolean transientFailure = shouldRetry(response.statusCode()) || !json;
             if (transientFailure && attempt < MAX_RETRIES) {
                 return delayed(request, attempt).thenCompose(next -> sendJsonWithRetry(next, attempt + 1));
@@ -62,8 +65,8 @@ public final class JsonHttpClient {
                 .timeout(Duration.ofSeconds(30))
                 .GET()
                 .header("Accept", "text/plain,text/vtt,application/x-subrip,*/*")
-                .header("User-Agent", "Aokuvue/1.5.14");
-        headers.forEach(b::header);
+                .header("User-Agent", APP_USER_AGENT);
+        applyOverrides(b, headers);
         return sendTextWithRetry(b.build(), 0, "text resource");
     }
 
@@ -73,12 +76,29 @@ public final class JsonHttpClient {
                 .GET()
                 .header("Accept", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8")
                 .header("Accept-Language", "en-US,en;q=0.9")
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Aokuvue/1.5.14");
-        headers.forEach(b::header);
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        + "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 "
+                        + APP_USER_AGENT);
+        applyOverrides(b, headers);
         return sendTextWithRetry(b.build(), 0, "web source");
     }
 
-    private CompletableFuture<String> sendTextWithRetry(HttpRequest request, int attempt, String resourceName) {
+    private static void applyOverrides(HttpRequest.Builder builder, Map<String, String> headers) {
+        if (headers == null || headers.isEmpty()) return;
+        headers.forEach((name, value) -> {
+            if (name == null || name.isBlank() || value == null || value.isBlank()) return;
+            // Provider requests sometimes require their browser User-Agent, Accept, Referer or
+            // Origin exactly. setHeader replaces our application default rather than producing
+            // duplicate values such as two User-Agent headers.
+            builder.setHeader(name, value);
+        });
+    }
+
+    private CompletableFuture<String> sendTextWithRetry(
+            HttpRequest request,
+            int attempt,
+            String resourceName
+    ) {
         return client.sendAsync(request, HttpResponse.BodyHandlers.ofString()).thenCompose(response -> {
             String body = response.body() == null ? "" : response.body();
             boolean transientFailure = shouldRetry(response.statusCode()) || body.isBlank();
@@ -113,7 +133,9 @@ public final class JsonHttpClient {
             String body = response.body() == null ? "" : response.body().stripLeading();
             String contentType = response.headers().firstValue("Content-Type").orElse("unknown");
             if (!(body.startsWith("{") || body.startsWith("["))) {
-                throw new IllegalStateException("Expected JSON but received " + contentType + " (HTTP " + response.statusCode() + ").");
+                throw new IllegalStateException(
+                        "Expected JSON but received " + contentType
+                                + " (HTTP " + response.statusCode() + ").");
             }
             JsonNode node = mapper.readTree(response.body());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {

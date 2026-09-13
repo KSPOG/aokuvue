@@ -36,7 +36,7 @@ import java.util.regex.Pattern;
 public final class HttpMediaRelay implements AutoCloseable {
     private static final String DEFAULT_USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-            "(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36";
+            "(KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36";
     private static final Pattern CONTENT_RANGE = Pattern.compile("(?i)^bytes\\s+(\\d+)-(\\d+)/(\\d+|\\*)$");
     private static final Pattern FIXED_RANGE = Pattern.compile("(?i)^bytes=(\\d+)-(\\d+)$");
     private static final int IO_BUFFER_BYTES = 256 * 1024;
@@ -576,8 +576,11 @@ public final class HttpMediaRelay implements AutoCloseable {
         String referer = upstreamHeaders.getOrDefault("Referer", "");
         if (!referer.isBlank()) request.header("Referer", referer);
 
-        // Do NOT invent an Origin header. Normal media element GETs commonly have Referer without
-        // Origin, and some signed CDN endpoints are stricter when an unexpected Origin is supplied.
+        // Some provider CDNs (including current MegaPlay/KotoCDN delivery hosts) require Origin.
+        // Never invent it: only forward an Origin that the source resolver explicitly supplied.
+        String origin = upstreamHeaders.getOrDefault("Origin", "");
+        if (!origin.isBlank()) request.header("Origin", origin);
+
         upstreamHeaders.forEach((name, value) -> {
             if (name == null || value == null || value.isBlank()) return;
             String lower = name.toLowerCase(Locale.ROOT);
