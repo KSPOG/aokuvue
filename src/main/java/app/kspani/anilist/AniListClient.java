@@ -45,10 +45,10 @@ public final class AniListClient {
         String query = """
                 query($type: MediaType, $sort: [MediaSort], $perPage: Int) {
                   Page(page: 1, perPage: $perPage) {
-                    media(type: $type, sort: $sort, isAdult: false) { %s }
+                    media(type: $type, sort: $sort%s) { %s }
                   }
                 }
-                """.formatted(mediaFields(false));
+                """.formatted(adultFilter(), mediaFields(false));
         Map<String,Object> vars = new LinkedHashMap<>();
         vars.put("type", type.name());
         vars.put("sort", List.of(sort));
@@ -60,10 +60,10 @@ public final class AniListClient {
         String query = """
                 query($search: String, $type: MediaType, $perPage: Int) {
                   Page(page: 1, perPage: $perPage) {
-                    media(search: $search, type: $type, sort: SEARCH_MATCH, isAdult: false) { %s }
+                    media(search: $search, type: $type, sort: SEARCH_MATCH%s) { %s }
                   }
                 }
-                """.formatted(mediaFields(false));
+                """.formatted(adultFilter(), mediaFields(false));
         Map<String,Object> vars = Map.of(
                 "search", text,
                 "type", type.name(),
@@ -229,6 +229,10 @@ public final class AniListClient {
     }
 
     public boolean authenticated() { return !config.get("anilist.accessToken").isBlank(); }
+
+    private String adultFilter() {
+        return config.getBoolean("content.includeAdult", true) ? "" : ", isAdult: false";
+    }
 
     private List<AniMedia> parseMediaArray(JsonNode array, UserListEntry override) {
         List<AniMedia> out = new ArrayList<>();
