@@ -102,8 +102,8 @@ final class AnikotoAnimeSourceTest {
         assertEquals(3, resolved.videos().size());
         assertEquals("hls", resolved.videos().get(0).container());
         assertEquals("mp4", resolved.videos().get(1).container());
-        assertEquals(1080, resolved.videos().get(1).quality());
-        assertEquals(720, resolved.videos().get(2).quality());
+        assertEquals(Integer.valueOf(1080), resolved.videos().get(1).quality());
+        assertEquals(Integer.valueOf(720), resolved.videos().get(2).quality());
         assertEquals("https://megaplay.buzz", resolved.videos().get(0).headers().get("Origin"));
         assertEquals(1, resolved.subtitles().size());
         assertEquals("English", resolved.subtitles().get(0).language());
