@@ -1,8 +1,16 @@
 $ErrorActionPreference = 'Stop'
 
 function Get-JavaMajor([string] $exe) {
-    $output = & $exe -version 2>&1 | Out-String
-    if ($output -match 'version\s+"(?<v>[0-9]+)(?:\.([0-9]+))?') {
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $exe
+    $startInfo.Arguments = '-version'
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $process = [Diagnostics.Process]::Start($startInfo)
+    $output = $process.StandardOutput.ReadToEnd() + $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+    if ($output -match '(?:version\s+"|javac\s+)(?<v>[0-9]+)(?:\.([0-9]+))?') {
         $major = [int]$Matches['v']
         if ($major -eq 1 -and $Matches[2]) { $major = [int]$Matches[2] }
         return $major
@@ -20,7 +28,7 @@ if (-not $java -or -not $javac) {
 $javaMajor = Get-JavaMajor $java.Source
 $javacMajor = Get-JavaMajor $javac.Source
 if ($javaMajor -ne 21 -or $javacMajor -ne 21) {
-    Write-Host "KSP Ani Clean requires JDK 21. PATH currently resolves java=$javaMajor, javac=$javacMajor." -ForegroundColor Red
+    Write-Host "AOKVUE requires JDK 21. PATH currently resolves java=$javaMajor, javac=$javacMajor." -ForegroundColor Red
     Write-Host 'Set JAVA_HOME to your JDK 21 directory and put %JAVA_HOME%\bin before older Java installations on PATH.' -ForegroundColor Yellow
     exit 1
 }

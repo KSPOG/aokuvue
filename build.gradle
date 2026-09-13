@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'app.kspani'
-version = '1.5.12'
+version = '1.5.13'
 
 base {
     archivesName = 'Aokuvue'
@@ -39,7 +39,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'app.kspani.Main'
+    mainClass = 'app.kspani.MainLauncher'
     applicationName = 'Aokuvue'
     applicationDefaultJvmArgs = ['-Dfile.encoding=UTF-8', '-Dprism.order=d3d,sw']
 }
