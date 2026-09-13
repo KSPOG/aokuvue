@@ -69,9 +69,34 @@ public final class AnikotoAnimeSource implements AnimeSource {
 
     @Override
     public CompletableFuture<List<SourceSeries>> search(AniMedia media) {
-        String query = media.searchTitles().stream().findFirst().orElse(media.title());
-        URI uri = BASE.resolve("filter?keyword=" + URLEncoder.encode(query, StandardCharsets.UTF_8));
-        return http.getHtml(uri, Map.of()).thenApply(AnikotoAnimeSource::parseSearchResults);
+        List<String> queries = media.searchTitles().stream()
+                .filter(title -> title != null && !title.isBlank())
+                .distinct()
+                .limit(4)
+                .toList();
+        if (queries.isEmpty()) queries = List.of(media.title());
+
+        // A provider can index the English, romaji or synonym rather than AniList's display title.
+        // Query a few aliases in parallel and let the central TitleMatcher rank the merged results.
+        List<CompletableFuture<List<SourceSeries>>> attempts = queries.stream()
+                .map(query -> {
+                    URI uri = BASE.resolve("filter/?keyword=" + URLEncoder.encode(query, StandardCharsets.UTF_8));
+                    return http.getHtml(uri, Map.of("Referer", BASE.toString()))
+                            .thenApply(AnikotoAnimeSource::parseSearchResults)
+                            .exceptionally(error -> List.of());
+                })
+                .toList();
+
+        return CompletableFuture.allOf(attempts.toArray(CompletableFuture[]::new))
+                .thenApply(ignored -> {
+                    Map<String, SourceSeries> merged = new LinkedHashMap<>();
+                    for (CompletableFuture<List<SourceSeries>> attempt : attempts) {
+                        for (SourceSeries series : attempt.join()) {
+                            merged.putIfAbsent(series.seriesId(), series);
+                        }
+                    }
+                    return List.copyOf(merged.values());
+                });
     }
 
     @Override
