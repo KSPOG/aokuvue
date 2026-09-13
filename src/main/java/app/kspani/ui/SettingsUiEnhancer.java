@@ -15,6 +15,8 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.util.StringConverter;
 
+import java.util.List;
+
 /**
  * Small presentation upgrades for settings controls that are created lazily by MainWindow.
  *
@@ -35,7 +37,8 @@ public final class SettingsUiEnhancer {
     }
 
     private static void enhanceTree(Parent parent) {
-        for (Node child : parent.getChildrenUnmodifiable()) {
+        // Enhancement can replace a slider with a row, so iterate over a stable snapshot.
+        for (Node child : List.copyOf(parent.getChildrenUnmodifiable())) {
             if (child instanceof Slider slider && isWatchThreshold(slider)) {
                 enhanceWatchThreshold(slider);
             }
