@@ -1,0 +1,72 @@
+name: Aokuvue Dev Application Package
+
+on:
+  push:
+    branches: [ dev ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aokuvue-dev-app-package
+  cancel-in-progress: true
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Build and test
+        shell: pwsh
+        run: .\gradlew.bat clean test installDist --no-daemon --stacktrace
+
+      - name: Package verified application
+        shell: pwsh
+        run: |
+          $version = (.\gradlew.bat -q printVersion --no-daemon | Select-Object -Last 1).Trim()
+          if (-not $version) { throw 'Could not determine Aokuvue version.' }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          & jpackage `
+            --type app-image `
+            --name 'Aokuvue Dev' `
+            --app-version $version `
+            --vendor 'Aokuvue' `
+            --description 'Aokuvue development channel desktop application' `
+            --input 'build\install\Aokuvue\lib' `
+            --main-jar "Aokuvue-$version.jar" `
+            --main-class app.kspani.MainLauncher `
+            --java-options '-Dfile.encoding=UTF-8' `
+            --java-options '-Dprism.order=d3d,sw' `
+            --icon 'src\main\resources\images\aokuvue.ico' `
+            --dest dist
+          if ($LASTEXITCODE -ne 0) { throw "jpackage failed with exit code $LASTEXITCODE" }
+          Compress-Archive -Path 'dist\Aokuvue Dev\*' -DestinationPath 'dist\AokuvueDev-windows-x64.zip' -Force
+          $hash = (Get-FileHash -Algorithm SHA256 'dist\AokuvueDev-windows-x64.zip').Hash.ToLowerInvariant()
+          "$hash  AokuvueDev-windows-x64.zip" | Out-File -Encoding ascii 'dist\AokuvueDev-windows-x64.zip.sha256'
+          "AOKUVUE_DEV_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Publish moving development package
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'dev-app-latest'
+          $notes = "Verified prebuilt Aokuvue Dev $env:AOKUVUE_DEV_VERSION from commit ${{ github.sha }}. This package is consumed by the native development-channel installer."
+          gh release view $tag --repo '${{ github.repository }}' *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag 'dist\AokuvueDev-windows-x64.zip' 'dist\AokuvueDev-windows-x64.zip.sha256' --repo '${{ github.repository }}' --clobber
+            gh release edit $tag --repo '${{ github.repository }}' --target '${{ github.sha }}' --title "Aokuvue Dev $env:AOKUVUE_DEV_VERSION" --notes $notes --prerelease
+          } else {
+            gh release create $tag 'dist\AokuvueDev-windows-x64.zip' 'dist\AokuvueDev-windows-x64.zip.sha256' --repo '${{ github.repository }}' --target '${{ github.sha }}' --title "Aokuvue Dev $env:AOKUVUE_DEV_VERSION" --notes $notes --prerelease
+          }

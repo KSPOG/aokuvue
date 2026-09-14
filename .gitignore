@@ -5,6 +5,7 @@ build/
 dist/
 .tools/
 .research/
+.tmp/
 .idea/
 *.iml
 *.log
@@ -12,3 +13,5 @@ out/
 __pycache__/
 *.pyc
 *.spec
+**/bin/
+**/obj/

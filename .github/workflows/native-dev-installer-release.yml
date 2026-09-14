@@ -1,0 +1,81 @@
+name: Native Aokuvue Dev Installer
+
+on:
+  push:
+    branches: [ dev ]
+    paths:
+      - 'installer/AokuvueDevInstaller.Native/**'
+      - '.github/workflows/native-dev-installer-release.yml'
+      - 'src/main/resources/images/aokuvue.ico'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-release:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      INSTALLER_VERSION: '0.2.0'
+      RELEASE_TAG: 'dev-installer-v0.2.0'
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build and self-test native installer
+        shell: pwsh
+        run: |
+          dotnet build installer\AokuvueDevInstaller.Native\AokuvueDevInstaller.Native.csproj -c Release
+          dotnet run --project installer\AokuvueDevInstaller.Native\AokuvueDevInstaller.Native.csproj -c Release --no-build -- --self-test
+
+      - name: Publish self-contained Windows executable
+        shell: pwsh
+        run: |
+          dotnet publish installer\AokuvueDevInstaller.Native\AokuvueDevInstaller.Native.csproj `
+            -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:PublishTrimmed=false `
+            -o dist\native-dev-installer
+          $source = 'dist\native-dev-installer\AokuvueDevInstaller.exe'
+          if (!(Test-Path $source)) { throw 'Native installer executable was not produced.' }
+          Copy-Item $source 'dist\AokuvueDevInstaller.exe' -Force
+          $hash = (Get-FileHash -Algorithm SHA256 'dist\AokuvueDevInstaller.exe').Hash.ToLowerInvariant()
+          "$hash  AokuvueDevInstaller.exe" | Out-File -Encoding ascii 'dist\AokuvueDevInstaller.exe.sha256'
+
+      - name: Upload native installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AokuvueDevInstaller-native-${{ env.INSTALLER_VERSION }}
+          path: |
+            dist/AokuvueDevInstaller.exe
+            dist/AokuvueDevInstaller.exe.sha256
+          if-no-files-found: error
+
+      - name: Publish native installer prerelease
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = @"
+          # Native Aokuvue Dev Installer v$env:INSTALLER_VERSION
+
+          Replaces the withdrawn Python/PyInstaller development installers.
+
+          - Compiled .NET 8 Windows application.
+          - Downloads only the prebuilt Aokuvue Dev package from this repository.
+          - Verifies the published SHA-256 checksum before installation.
+          - Does not install Git, Gradle, Python or a JDK and does not compile source locally.
+
+          This prerelease is currently unsigned. Verify its published SHA-256 before use.
+          "@
+          gh release create $env:RELEASE_TAG `
+            'dist\AokuvueDevInstaller.exe' 'dist\AokuvueDevInstaller.exe.sha256' `
+            --repo '${{ github.repository }}' --target '${{ github.sha }}' `
+            --title "Native Aokuvue Dev Installer v$env:INSTALLER_VERSION" `
+            --notes $notes --prerelease
