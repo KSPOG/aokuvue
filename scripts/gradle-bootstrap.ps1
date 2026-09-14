@@ -27,6 +27,23 @@ $urls = @(
     "https://services.gradle.org/distributions/gradle-$version-bin.zip"
 )
 
+function Get-Sha256 {
+    param([Parameter(Mandatory = $true)][string] $Path)
+
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $bytes = $sha.ComputeHash($stream)
+            return (-join ($bytes | ForEach-Object { $_.ToString('x2') }))
+        } finally {
+            $sha.Dispose()
+        }
+    } finally {
+        $stream.Dispose()
+    }
+}
+
 function Test-GradleArchive {
     param([Parameter(Mandatory = $true)][string] $Path)
 
@@ -41,7 +58,7 @@ function Test-GradleArchive {
             return $false
         }
 
-        $actual = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+        $actual = (Get-Sha256 -Path $Path).ToLowerInvariant()
         if ($actual -ne $expectedSha256) {
             Write-Warning "Ignoring Gradle archive with invalid SHA-256: $actual"
             return $false
