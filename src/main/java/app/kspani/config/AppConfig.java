@@ -51,6 +51,9 @@ public final class AppConfig {
         putIfMissing("player.autoMarkWatched", "true");
         putIfMissing("player.autoPlay", "true");
         putIfMissing("player.seekSeconds", "10");
+        putIfMissing("player.autoSkipIntro", "true");
+        putIfMissing("player.autoSkipOutro", "true");
+        putIfMissing("player.autoNextEpisode", "true");
         putIfMissing("player.defaultSpeed", "1.0");
         putIfMissing("player.subtitleSize", "20");
         putIfMissing("ui.startTab", "HOME");

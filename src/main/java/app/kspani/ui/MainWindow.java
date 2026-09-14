@@ -146,6 +146,15 @@ public final class MainWindow extends BorderPane {
                 search.requestFocus();
                 search.selectAll();
                 event.consume();
+                return;
+            }
+            if (page != Page.PLAYER || playerShortcutBlocked(event.getTarget())) return;
+            if (event.getCode() == KeyCode.SPACE) {
+                app.player().playPause();event.consume();
+            } else if (event.getCode() == KeyCode.LEFT) {
+                app.player().seekRelative(-app.player().settings().seekSeconds());event.consume();
+            } else if (event.getCode() == KeyCode.RIGHT) {
+                app.player().seekRelative(app.player().settings().seekSeconds());event.consume();
             }
         });
         app.player().setStatusConsumer(text -> Platform.runLater(() -> status.setText(text)));
@@ -162,6 +171,16 @@ public final class MainWindow extends BorderPane {
     /** Completes after every initial Home request has reached a terminal state. */
     public CompletableFuture<Void> initialContentReady() {
         return initialContentReady;
+    }
+
+    private static boolean playerShortcutBlocked(Object target) {
+        Node node = target instanceof Node value ? value : null;
+        while (node != null) {
+            if (node instanceof TextInputControl || node instanceof ComboBoxBase<?> || node instanceof Spinner<?>
+                    || node instanceof Slider || node instanceof ListView<?> || node instanceof ListCell<?>) return true;
+            node = node.getParent();
+        }
+        return false;
     }
 
     private Node buildWindowTitleBar() {
@@ -1195,6 +1214,9 @@ public final class MainWindow extends BorderPane {
         content.getChildren().setAll(pane);
         configurePlayerFullScreen(pane,null,bottom,full);
         try {
+            app.player().setEndOfMediaAction(()->{
+                if(app.player().settings().autoNextEpisode())Platform.runLater(()->playAdjacent(session,1));
+            });
             MediaPlayer mp=app.player().load(session);
             view.setMediaPlayer(mp);volume.valueProperty().addListener((o,a,b)->mp.setVolume(b.doubleValue()));mp.setVolume(volume.getValue());speed.setOnAction(e->mp.setRate(speed.getValue()==null?1.0:speed.getValue()));mp.setRate(speed.getValue()==null?1.0:speed.getValue());
             final List<SubtitleCue>[] cues=new List[]{List.of()};
@@ -1206,7 +1228,13 @@ public final class MainWindow extends BorderPane {
             subtitles.setOnAction(e->{int uiIndex=subtitles.getSelectionModel().getSelectedIndex();Integer idx=uiIndex<=0?null:uiIndex-1;app.episodes().setSubtitleIndex(session.media(),idx);selectSubtitle.accept(idx);});
             selectSubtitle.accept(session.playback().selectedSubtitleIndex());
             final boolean[] dragging={false};seek.setOnMousePressed(e->dragging[0]=true);seek.setOnMouseReleased(e->{dragging[0]=false;if(mp.getTotalDuration().toMillis()>0)mp.seek(Duration.millis(seek.getValue()*mp.getTotalDuration().toMillis()));});
-            mp.currentTimeProperty().addListener((o,a,b)->{if(!dragging[0]&&mp.getTotalDuration().toMillis()>0)seek.setValue(b.toMillis()/mp.getTotalDuration().toMillis());time.setText(clock(b.toMillis())+" / "+clock(mp.getTotalDuration().toMillis()));String caption=SubtitleParser.at(cues[0],(long)b.toMillis());subtitleOverlay.setText(caption);subtitleOverlay.setVisible(!caption.isBlank());});
+            final boolean[] introSkipped={false},outroSkipped={false};
+            mp.currentTimeProperty().addListener((o,a,b)->{
+                double position=b.toMillis();SkipInterval intro=session.playback().resolved().intro(),outro=session.playback().resolved().outro();
+                if(!introSkipped[0]&&app.player().settings().autoSkipIntro()&&intro!=null&&intro.contains(position)){introSkipped[0]=true;mp.seek(Duration.millis(intro.endMs()));status.setText("Skipped detected intro.");return;}
+                if(!outroSkipped[0]&&app.player().settings().autoSkipOutro()&&outro!=null&&outro.contains(position)){outroSkipped[0]=true;mp.seek(Duration.millis(outro.endMs()));status.setText("Skipped detected outro.");return;}
+                if(!dragging[0]&&mp.getTotalDuration().toMillis()>0)seek.setValue(position/mp.getTotalDuration().toMillis());time.setText(clock(position)+" / "+clock(mp.getTotalDuration().toMillis()));String caption=SubtitleParser.at(cues[0],(long)position);subtitleOverlay.setText(caption);subtitleOverlay.setVisible(!caption.isBlank());
+            });
         } catch(Exception ex){
             System.err.println("[Aokuvue][Player] startup failed: "+root(ex));
             status.setText("Player failed: "+root(ex));
@@ -1424,6 +1452,10 @@ public final class MainWindow extends BorderPane {
         Slider watchPct=new Slider(0.5,1.0,app.config().getDouble("player.watchPercentage",0.85));watchPct.setShowTickLabels(true);watchPct.setShowTickMarks(true);watchPct.setMajorTickUnit(0.1);
         CheckBox autoMarkWatched=new CheckBox("Automatically mark episodes as watched");autoMarkWatched.setSelected(app.config().getBoolean("player.autoMarkWatched",true));watchPct.disableProperty().bind(autoMarkWatched.selectedProperty().not());
         CheckBox autoPlay=new CheckBox("Autoplay resolved episodes");autoPlay.setSelected(app.config().getBoolean("player.autoPlay",true));
+        Spinner<Integer> seekSeconds=new Spinner<>(5,60,Math.max(5,Math.min(60,app.config().getInt("player.seekSeconds",10))),5);seekSeconds.setEditable(true);
+        CheckBox autoSkipIntro=new CheckBox("Automatically skip detected intros");autoSkipIntro.setSelected(app.config().getBoolean("player.autoSkipIntro",true));
+        CheckBox autoSkipOutro=new CheckBox("Automatically skip detected outros");autoSkipOutro.setSelected(app.config().getBoolean("player.autoSkipOutro",true));
+        CheckBox autoNextEpisode=new CheckBox("Automatically play the next episode");autoNextEpisode.setSelected(app.config().getBoolean("player.autoNextEpisode",true));
         ComboBox<Double> defaultSpeed=new ComboBox<>(FXCollections.observableArrayList(0.5,0.75,1.0,1.25,1.5,1.75,2.0));double savedSpeed=app.config().getDouble("player.defaultSpeed",1.0);defaultSpeed.setValue(defaultSpeed.getItems().stream().min(Comparator.comparingDouble(v->Math.abs(v-savedSpeed))).orElse(1.0));
         double savedSubtitleSize=PlayerSettings.sanitizeSubtitleSize(app.config().getDouble("player.subtitleSize",20.0));
         Slider subtitleSize=new Slider(14,48,savedSubtitleSize);subtitleSize.setShowTickLabels(true);subtitleSize.setShowTickMarks(true);subtitleSize.setMajorTickUnit(4);subtitleSize.setMinorTickCount(3);subtitleSize.setSnapToTicks(true);HBox.setHgrow(subtitleSize,Priority.ALWAYS);
@@ -1440,7 +1472,7 @@ public final class MainWindow extends BorderPane {
         VBox sourceCard=settingsCard("EverythingMoe sources",noSources);
         VBox providerDirectoryCard=providerDirectoryCard();
         VBox hentaiDirectoryCard=hentaiDirectoryCard();
-        VBox playerCard=settingsCard("Player",autoMarkWatched,field("Mark episode watched at",watchPct),field("Default speed",defaultSpeed),field("Subtitle size",subtitleSizeControl),autoPlay);
+        VBox playerCard=settingsCard("Player",autoMarkWatched,field("Mark episode watched at",watchPct),autoPlay,field("Keyboard seek seconds",seekSeconds),autoSkipIntro,autoSkipOutro,autoNextEpisode,field("Default speed",defaultSpeed),field("Subtitle size",subtitleSizeControl));
         VBox uiCard=settingsCard("Interface",field("Startup tab",startTab));
         VBox accountCard=settingsCard("AniList",new HBox(8,login,logout),new Label("OAuth client ID "+AniListAuthService.CLIENT_ID+" · browser/Auth Pin login"));
         Button save=new Button("Save settings");save.getStyleClass().add("primary-button");save.setOnAction(e->{
@@ -1449,6 +1481,10 @@ public final class MainWindow extends BorderPane {
             app.config().set("player.defaultSpeed",Double.toString(defaultSpeed.getValue()==null?1.0:defaultSpeed.getValue()));
             app.config().set("player.subtitleSize",Double.toString(Math.rint(subtitleSize.getValue())));
             app.config().set("player.autoPlay",Boolean.toString(autoPlay.isSelected()));
+            app.config().set("player.seekSeconds",Integer.toString(seekSeconds.getValue()));
+            app.config().set("player.autoSkipIntro",Boolean.toString(autoSkipIntro.isSelected()));
+            app.config().set("player.autoSkipOutro",Boolean.toString(autoSkipOutro.isSelected()));
+            app.config().set("player.autoNextEpisode",Boolean.toString(autoNextEpisode.isSelected()));
             app.config().set("ui.startTab",startTab.getValue());
             app.player().reloadSettings();
             status.setText("Settings saved. Subtitle size will be used by the player.");

@@ -5,6 +5,7 @@ import app.kspani.domain.AniMedia;
 import app.kspani.source.AnimeSource;
 import app.kspani.source.PlaybackSource;
 import app.kspani.source.ResolvedServer;
+import app.kspani.source.SkipInterval;
 import app.kspani.source.SourceCapabilities;
 import app.kspani.source.SourceDescriptor;
 import app.kspani.source.SourceEpisode;
@@ -246,8 +247,10 @@ public final class AnikotoAnimeSource implements AnimeSource {
         List<SourceCandidate> candidates = new ArrayList<>();
         collectSourceCandidates(json, candidates);
         String encryptedPayload = json.path("enc").asText("");
+        JsonNode decoded = null;
         if (!encryptedPayload.isBlank()) {
-            collectSourceCandidates(decryptMegaPlayPayload(encryptedPayload), candidates);
+            decoded = decryptMegaPlayPayload(encryptedPayload);
+            collectSourceCandidates(decoded, candidates);
         }
 
         List<PlaybackSource> videos = new ArrayList<>();
@@ -278,7 +281,35 @@ public final class AnikotoAnimeSource implements AnimeSource {
         List<SubtitleTrack> subtitles = new ArrayList<>();
         Set<String> seenSubtitles = new LinkedHashSet<>();
         collectSubtitleTracks(json, embed, subtitles, seenSubtitles);
-        return new ResolvedServer(server, videos, subtitles, List.of());
+        if (decoded != null) collectSubtitleTracks(decoded, embed, subtitles, seenSubtitles);
+        SkipInterval intro = firstSkipInterval(json, decoded, "intro", "opening", "op");
+        SkipInterval outro = firstSkipInterval(json, decoded, "outro", "ending", "ed");
+        return new ResolvedServer(server, videos, subtitles, List.of(), intro, outro);
+    }
+
+    private static SkipInterval firstSkipInterval(JsonNode primary, JsonNode secondary, String... names) {
+        for (JsonNode root : List.of(primary == null ? JSON.nullNode() : primary, secondary == null ? JSON.nullNode() : secondary)) {
+            for (String name : names) { SkipInterval interval = parseSkipInterval(root.path(name)); if (interval != null && interval.valid()) return interval; }
+        }
+        return null;
+    }
+
+    static SkipInterval parseSkipInterval(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) return null;
+        double start; double end;
+        if (node.isArray() && node.size() >= 2) { start = node.path(0).asDouble(Double.NaN); end = node.path(1).asDouble(Double.NaN); }
+        else if (node.isObject()) { start = firstNumber(node, "start", "startTime", "from"); end = firstNumber(node, "end", "endTime", "to"); }
+        else return null;
+        if (!Double.isFinite(start) || !Double.isFinite(end) || end <= start) return null;
+        return new SkipInterval(Math.round(start * 1000.0), Math.round(end * 1000.0));
+    }
+
+    private static double firstNumber(JsonNode node, String... fields) {
+        for (String field : fields) {
+            JsonNode value = node.get(field);
+            if (value != null && (value.isNumber() || value.isTextual())) { try { return Double.parseDouble(value.asText()); } catch (NumberFormatException ignored) { } }
+        }
+        return Double.NaN;
     }
 
     static JsonNode decryptMegaPlayPayload(String encryptedPayload) {
@@ -345,10 +376,10 @@ public final class AnikotoAnimeSource implements AnimeSource {
 
         String kind = firstText(node, "kind", "type").toLowerCase();
         String url = firstText(node, "file", "url", "src");
-        boolean subtitleLike = kind.isBlank()
-                || kind.contains("caption")
+        boolean subtitleLike = kind.contains("caption")
                 || kind.contains("subtitle")
-                || kind.equals("sub");
+                || kind.equals("sub")
+                || (kind.isBlank() && (node.has("label") || node.has("title") || node.has("language")));
         URI uri = absoluteHttpUri(url);
         if (subtitleLike && uri != null && seen.add(uri.toString())) {
             String label = firstText(node, "label", "title", "language");

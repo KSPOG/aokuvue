@@ -28,7 +28,7 @@ public final class EverythingMoeHentaiDirectory {
 
     public CompletableFuture<List<ProviderSite>> refresh() {
         HttpRequest request = HttpRequest.newBuilder(DIRECTORY_URI).timeout(Duration.ofSeconds(15))
-                .header("Accept", "text/html,application/xhtml+xml").header("User-Agent", "Aokuvue/1.5.21").GET().build();
+                .header("Accept", "text/html,application/xhtml+xml").header("User-Agent", "Aokuvue/1.5.22").GET().build();
         return client.sendAsync(request, HttpResponse.BodyHandlers.ofString()).thenApply(response -> {
             if (response.statusCode() < 200 || response.statusCode() >= 300) return latest;
             List<Entry> parsed = parseEntries(response.body());

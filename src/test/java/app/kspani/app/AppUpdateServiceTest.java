@@ -25,4 +25,10 @@ class AppUpdateServiceTest {
     void acceptsLeadingVersionPrefix() {
         assertTrue(AppUpdateService.compareVersions("v1.1.0", "1.0.9") > 0);
     }
+
+    @Test void extractsChecksumFromPublishedSidecarFormat() {
+        String hash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        assertEquals(hash, AppUpdateService.extractSha256(hash + "  AokuvueInstaller.exe\n"));
+        assertEquals("", AppUpdateService.extractSha256("not a checksum"));
+    }
 }

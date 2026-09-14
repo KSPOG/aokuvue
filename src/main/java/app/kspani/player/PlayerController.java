@@ -28,6 +28,7 @@ public final class PlayerController implements AutoCloseable {
     private boolean watchedSent;
     private long lastSavedAt;
     private Consumer<String> status = ignored -> {};
+    private Runnable endOfMediaAction = () -> {};
 
     public PlayerController(
             AppConfig config,
@@ -116,6 +117,7 @@ public final class PlayerController implements AutoCloseable {
         player.setOnEndOfMedia(() -> {
             onProgress(player.getTotalDuration().toMillis(), player.getTotalDuration().toMillis());
             status.accept("Episode " + newSession.playback().episode().number() + " finished.");
+            endOfMediaAction.run();
         });
         player.setOnError(() -> {
             var error = player.getError();
@@ -173,6 +175,7 @@ public final class PlayerController implements AutoCloseable {
     public PlayerSession session() { return session; }
     public PlayerSettings settings() { return settings; }
     public void reloadSettings() { settings = PlayerSettings.load(config); }
+    public void setEndOfMediaAction(Runnable action) { endOfMediaAction = action == null ? () -> {} : action; }
 
     public void playPause() {
         if (mediaPlayer == null) return;

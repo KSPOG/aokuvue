@@ -7,6 +7,9 @@ public record PlayerSettings(
         boolean autoMarkWatched,
         boolean autoPlay,
         int seekSeconds,
+        boolean autoSkipIntro,
+        boolean autoSkipOutro,
+        boolean autoNextEpisode,
         double defaultSpeed,
         double subtitleSize
 ) {
@@ -16,7 +19,10 @@ public record PlayerSettings(
                 pct,
                 config.getBoolean("player.autoMarkWatched", true),
                 config.getBoolean("player.autoPlay", true),
-                Math.max(5, config.getInt("player.seekSeconds", 10)),
+                Math.max(5, Math.min(60, config.getInt("player.seekSeconds", 10))),
+                config.getBoolean("player.autoSkipIntro", true),
+                config.getBoolean("player.autoSkipOutro", true),
+                config.getBoolean("player.autoNextEpisode", true),
                 Math.max(0.25, Math.min(4.0, config.getDouble("player.defaultSpeed", 1.0))),
                 sanitizeSubtitleSize(config.getDouble("player.subtitleSize", 20.0))
         );

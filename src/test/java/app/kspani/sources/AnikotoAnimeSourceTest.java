@@ -57,6 +57,8 @@ final class AnikotoAnimeSourceTest {
         var json = new ObjectMapper().readTree("""
                 {
                   "sources": {"file": "https://cdn.example/anime/master.m3u8"},
+                  "intro": {"start": 12.5, "end": 97.25},
+                  "outro": [1320, 1400],
                   "tracks": [
                     {"file": "https://cdn.example/subs/english.vtt", "label": "English", "kind": "captions", "default": true},
                     {"file": "https://cdn.example/thumbs.vtt", "label": "Thumbnails", "kind": "thumbnails"}
@@ -80,6 +82,10 @@ final class AnikotoAnimeSourceTest {
         assertEquals(1, resolved.subtitles().size());
         assertEquals("English", resolved.subtitles().get(0).language());
         assertTrue(resolved.subtitles().get(0).defaultTrack());
+        assertEquals(12_500, resolved.intro().startMs());
+        assertEquals(97_250, resolved.intro().endMs());
+        assertEquals(1_320_000, resolved.outro().startMs());
+        assertEquals(1_400_000, resolved.outro().endMs());
     }
 
     @Test

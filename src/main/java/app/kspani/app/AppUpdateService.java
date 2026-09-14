@@ -68,21 +68,26 @@ public final class AppUpdateService {
         return buildFile.thenCombine(releases, (gradle, releaseJson) -> {
             String current = AppVersion.current();
             String latest = extractGradleVersion(gradle);
-            if (!isNewer(latest, current)) return Optional.empty();
+            if (!isNewer(latest, current)) return null;
 
             InstallerRelease installer = findInstallerRelease(releaseJson)
                     .filter(value -> compareVersions(value.version(), MIN_INSTALLER_VERSION) >= 0)
                     .orElse(null);
-            if (installer == null) return Optional.empty();
-
-            return Optional.of(new UpdateInfo(
-                    current,
-                    latest,
-                    installer.version(),
-                    installer.url(),
-                    installer.sha256()
-            ));
+            return installer == null ? null : new UpdateCandidate(current, latest, installer);
+        }).thenCompose(candidate -> {
+            if (candidate == null) return CompletableFuture.completedFuture(Optional.empty());
+            InstallerRelease installer = candidate.installer();
+            if (SHA256.matcher(installer.sha256()).matches()) return CompletableFuture.completedFuture(Optional.of(toUpdateInfo(candidate, installer.sha256())));
+            if (installer.checksumUrl() == null) return CompletableFuture.completedFuture(Optional.empty());
+            return fetchText(installer.checksumUrl()).thenApply(text -> {
+                String sha = extractSha256(text);
+                return SHA256.matcher(sha).matches() ? Optional.of(toUpdateInfo(candidate, sha)) : Optional.empty();
+            });
         });
+    }
+
+    private static UpdateInfo toUpdateInfo(UpdateCandidate candidate, String sha256) {
+        return new UpdateInfo(candidate.current(), candidate.latest(), candidate.installer().version(), candidate.installer().url(), sha256);
     }
 
     /**
@@ -197,6 +202,11 @@ public final class AppUpdateService {
         return 0;
     }
 
+    static String extractSha256(String text) {
+        Matcher matcher = SHA256.matcher(text == null ? "" : text);
+        return matcher.find() ? matcher.group().toLowerCase(Locale.ROOT) : "";
+    }
+
     private Optional<InstallerRelease> findInstallerRelease(String json) {
         try {
             JsonNode releases = mapper.readTree(json);
@@ -209,6 +219,13 @@ public final class AppUpdateService {
                 if (!tag.toLowerCase(Locale.ROOT).startsWith("installer-v")) continue;
                 String version = tag.substring("installer-v".length()).trim();
 
+                URI checksumUrl = null;
+                for (JsonNode asset : release.path("assets")) {
+                    if ((INSTALLER_ASSET + ".sha256").equalsIgnoreCase(asset.path("name").asText(""))) {
+                        String checksum = asset.path("browser_download_url").asText("").trim();
+                        if (!checksum.isBlank()) checksumUrl = URI.create(checksum);
+                    }
+                }
                 for (JsonNode asset : release.path("assets")) {
                     if (!INSTALLER_ASSET.equalsIgnoreCase(asset.path("name").asText(""))) continue;
                     String url = asset.path("browser_download_url").asText("").trim();
@@ -218,7 +235,7 @@ public final class AppUpdateService {
                             ? digest.substring("sha256:".length()).trim()
                             : "";
                     if (!SHA256.matcher(sha).matches()) continue;
-                    InstallerRelease candidate = new InstallerRelease(version, URI.create(url), sha);
+                    InstallerRelease candidate = new InstallerRelease(version, URI.create(url), sha, checksumUrl);
                     if (best == null || compareVersions(candidate.version(), best.version()) > 0) best = candidate;
                 }
             }
@@ -308,5 +325,6 @@ public final class AppUpdateService {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
 
-    private record InstallerRelease(String version, URI url, String sha256) {}
+    private record UpdateCandidate(String current, String latest, InstallerRelease installer) {}
+    private record InstallerRelease(String version, URI url, String sha256, URI checksumUrl) {}
 }
