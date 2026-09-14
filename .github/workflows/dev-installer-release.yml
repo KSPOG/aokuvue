@@ -27,8 +27,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     env:
-      DEV_INSTALLER_VERSION: '0.1.1'
-      RELEASE_TAG: 'dev-installer-v0.1.1'
+      DEV_INSTALLER_VERSION: '0.1.2'
+      RELEASE_TAG: 'dev-installer-v0.1.2'
 
     steps:
       - name: Checkout dev

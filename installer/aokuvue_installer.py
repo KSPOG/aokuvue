@@ -167,6 +167,7 @@ def download_file(
     progress=None,
     expected_sha256: str = "",
     accept: str = "*/*",
+    user_agent: str = "",
 ) -> str:
     destination.parent.mkdir(parents=True, exist_ok=True)
     partial = destination.with_suffix(destination.suffix + ".part")
@@ -174,7 +175,7 @@ def download_file(
     request = urllib.request.Request(
         url,
         headers={
-            "User-Agent": USER_AGENT,
+            "User-Agent": user_agent or USER_AGENT,
             "Accept": accept,
             "Accept-Encoding": "identity",
         },
@@ -201,6 +202,56 @@ def download_file(
             )
         os.replace(partial, destination)
         return actual
+    except Exception:
+        partial.unlink(missing_ok=True)
+        raise
+
+
+def browser_download_user_agent() -> str:
+    return (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        f"Chrome/140.0.0.0 Safari/537.36 {USER_AGENT}"
+    )
+
+
+def download_file_with_curl(url: str, destination: Path) -> None:
+    curl = shutil.which("curl.exe") or shutil.which("curl")
+    if not curl:
+        raise RuntimeError("Windows curl.exe is unavailable")
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    partial = destination.with_suffix(destination.suffix + ".part")
+    partial.unlink(missing_ok=True)
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        result = subprocess.run(
+            [
+                curl,
+                "--fail",
+                "--location",
+                "--silent",
+                "--show-error",
+                "--retry", "2",
+                "--retry-all-errors",
+                "--connect-timeout", "30",
+                "--max-time", "300",
+                "--user-agent", browser_download_user_agent(),
+                "--header", "Accept: */*",
+                "--output", str(partial),
+                url,
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=330,
+            creationflags=creationflags,
+        )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or f"exit code {result.returncode}").strip()
+            raise RuntimeError(f"curl download failed: {detail}")
+        os.replace(partial, destination)
     except Exception:
         partial.unlink(missing_ok=True)
         raise
@@ -264,17 +315,26 @@ def download_source(commit: str, work_dir: Path, log, set_progress) -> Path:
     for index, url in enumerate(mirrors, start=1):
         try:
             log(f"Source mirror {index}/{len(mirrors)}: {urllib.parse.urlsplit(url).netloc}")
-            download_file(
-                url,
-                archive,
-                report,
-                accept="application/zip, application/octet-stream;q=0.9, */*;q=0.8",
-            )
+            try:
+                download_file(
+                    url,
+                    archive,
+                    report,
+                    accept="*/*",
+                    user_agent=browser_download_user_agent(),
+                )
+            except Exception as python_error:
+                log(f"Python downloader failed ({python_error}); retrying with Windows curl…")
+                download_file_with_curl(url, archive)
+                set_progress(32)
             if not zipfile.is_zipfile(archive):
                 raise RuntimeError("The downloaded response is not a valid ZIP archive")
             break
-        except (OSError, RuntimeError, urllib.error.URLError) as error:
-            archive.unlink(missing_ok=True)
+        except Exception as error:
+            try:
+                archive.unlink(missing_ok=True)
+            except OSError as cleanup_error:
+                log(f"Could not remove failed archive: {cleanup_error}")
             detail = f"{urllib.parse.urlsplit(url).netloc}: {error}"
             errors.append(detail)
             log(f"Source mirror {index} failed: {error}")

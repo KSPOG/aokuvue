@@ -11,7 +11,7 @@ import aokuvue_installer as installer
 
 
 installer.APP_NAME = "Aokuvue Dev"
-installer.INSTALLER_VERSION = "0.1.1"
+installer.INSTALLER_VERSION = "0.1.2"
 installer.SOURCE_BRANCH = "dev"
 installer.USER_AGENT = f"AokuvueDevInstaller/{installer.INSTALLER_VERSION}"
 
