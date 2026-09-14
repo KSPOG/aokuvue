@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'app.kspani'
-version = '1.5.15'
+version = '1.5.16'
 
 base {
     archivesName = 'Aokuvue'
@@ -47,6 +47,12 @@ application {
 tasks.named('jar') {
     manifest {
         attributes 'Implementation-Title': 'Aokuvue', 'Implementation-Version': project.version
+    }
+}
+
+tasks.register('printVersion') {
+    doLast {
+        println project.version
     }
 }
 
