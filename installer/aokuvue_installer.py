@@ -87,6 +87,25 @@ def gradle_user_home_dir() -> Path:
     return local_app_data() / APP_NAME / "gradle-home"
 
 
+def reusable_gradle_distribution_cache(work_dir: Path) -> Path:
+    local = local_app_data()
+    candidates = [
+        gradle_cache_dir(),
+        local / "Aokuvue" / "build-tools" / "gradle",
+        local / "AOKUVUE" / "build-tools" / "gradle",
+        local / "AOKVUE" / "build-tools" / "gradle",
+    ]
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate).casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        if (candidate / "gradle-8.10.2" / "bin" / "gradle.bat").is_file():
+            return candidate
+    return work_dir / "build-tools" / "gradle"
+
+
 def resource_path(name: str) -> Path:
     base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
     bundled = base / "assets" / name
@@ -148,17 +167,24 @@ def remember_install_dir(path: Path) -> None:
     save_state(state)
 
 
-def request_bytes(url: str, timeout: int = 90, accept: str = "*/*") -> bytes:
+def request_bytes(
+    url: str,
+    timeout: int = 90,
+    accept: str = "*/*",
+    user_agent: str = "",
+) -> bytes:
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": USER_AGENT, "Accept": accept},
+        headers={"User-Agent": user_agent or USER_AGENT, "Accept": accept},
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read()
 
 
-def request_json(url: str, timeout: int = 45):
-    return json.loads(request_bytes(url, timeout, "application/vnd.github+json").decode("utf-8"))
+def request_json(url: str, timeout: int = 45, user_agent: str = ""):
+    return json.loads(
+        request_bytes(url, timeout, "application/json", user_agent).decode("utf-8")
+    )
 
 
 def download_file(
@@ -255,6 +281,37 @@ def download_file_with_curl(url: str, destination: Path) -> None:
     except Exception:
         partial.unlink(missing_ok=True)
         raise
+
+
+def request_bytes_with_curl(url: str, timeout: int = 90) -> bytes:
+    curl = shutil.which("curl.exe") or shutil.which("curl")
+    if not curl:
+        raise RuntimeError("Windows curl.exe is unavailable")
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    result = subprocess.run(
+        [
+            curl,
+            "--fail",
+            "--location",
+            "--silent",
+            "--show-error",
+            "--retry", "2",
+            "--retry-all-errors",
+            "--connect-timeout", "30",
+            "--max-time", str(timeout),
+            "--user-agent", browser_download_user_agent(),
+            "--header", "Accept: application/json",
+            url,
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=timeout + 30,
+        creationflags=creationflags,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"curl request failed: {detail or f'exit code {result.returncode}'}")
+    return result.stdout
 
 
 def sha256_file(path: Path) -> str:
@@ -408,7 +465,10 @@ class JdkPackage:
 
 
 def resolve_jdk_package() -> JdkPackage:
-    assets = request_json(ADOPTIUM_API)
+    try:
+        assets = request_json(ADOPTIUM_API, user_agent=browser_download_user_agent())
+    except Exception:
+        assets = json.loads(request_bytes_with_curl(ADOPTIUM_API).decode("utf-8"))
     if not isinstance(assets, list) or not assets:
         raise RuntimeError("Eclipse Adoptium did not return a Temurin JDK 21 package")
     package = assets[0].get("binary", {}).get("package", {})
@@ -433,6 +493,54 @@ def locate_jdk(root: Path) -> Path | None:
     return None
 
 
+def jdk_major_version(jdk: Path) -> int | None:
+    java = jdk / "bin" / "java.exe"
+    if not java.is_file():
+        return None
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        result = subprocess.run(
+            [str(java), "-version"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+            creationflags=creationflags,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    output = (result.stderr or "") + "\n" + (result.stdout or "")
+    match = re.search(r'(?:java|openjdk) version "(?:1\.)?(\d+)', output, re.IGNORECASE)
+    return int(match.group(1)) if match else None
+
+
+def reusable_jdk_candidates() -> list[Path]:
+    local = local_app_data()
+    candidates = [
+        local / "AOKVUE" / "jdk-21",
+        local / "AOKUVUE" / "jdk-21",
+        local / "Aokuvue" / "jdk-21",
+        local / "Aokuvue" / "installer-cache" / "jdk-21",
+    ]
+    java_home = os.environ.get("JAVA_HOME", "").strip()
+    if java_home:
+        candidates.append(Path(java_home))
+    program_files = Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+    for parent in (program_files / "Eclipse Adoptium", program_files / "Java"):
+        if parent.is_dir():
+            candidates.extend(sorted(parent.glob("jdk-21*")))
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate).casefold()
+        if key not in seen:
+            seen.add(key)
+            unique.append(candidate)
+    return unique
+
+
 def ensure_jdk(log, set_progress) -> Path:
     cache = installer_cache_dir()
     extracted = cache / "jdk-21"
@@ -440,6 +548,12 @@ def ensure_jdk(log, set_progress) -> Path:
     if found:
         log(f"Using cached Temurin JDK 21: {found}")
         return found
+
+    for candidate in reusable_jdk_candidates():
+        found = locate_jdk(candidate)
+        if found and jdk_major_version(found) == 21:
+            log(f"Using installed JDK 21: {found}")
+            return found
 
     package = resolve_jdk_package()
     cache.mkdir(parents=True, exist_ok=True)
@@ -451,7 +565,25 @@ def ensure_jdk(log, set_progress) -> Path:
             if total > 0:
                 set_progress(min(50.0, 33.0 + (received / total) * 17.0))
 
-        download_file(package.url, archive, report, package.checksum)
+        try:
+            download_file(
+                package.url,
+                archive,
+                report,
+                package.checksum,
+                user_agent=browser_download_user_agent(),
+            )
+        except Exception as python_error:
+            log(f"Python JDK downloader failed ({python_error}); retrying with Windows curl…")
+            download_file_with_curl(package.url, archive)
+            actual = sha256_file(archive).lower()
+            if actual != package.checksum:
+                archive.unlink(missing_ok=True)
+                raise RuntimeError(
+                    f"SHA-256 verification failed for {package.name}: "
+                    f"expected {package.checksum}, got {actual}"
+                )
+            set_progress(50)
     else:
         log("Using verified cached Temurin JDK 21 archive.")
 
@@ -493,11 +625,16 @@ def run_process(command: list[str], cwd: Path, env: dict[str, str], log) -> None
 
 
 def package_application(project: Path, jdk: Path, work_dir: Path, version: str, log, set_progress) -> Path:
+    project = project.resolve()
+    jdk = jdk.resolve()
+    work_dir = work_dir.resolve()
     env = os.environ.copy()
     env["JAVA_HOME"] = str(jdk)
     env["PATH"] = str(jdk / "bin") + os.pathsep + env.get("PATH", "")
-    env["AOKUVUE_GRADLE_CACHE"] = str(gradle_cache_dir())
-    gradle_home = gradle_user_home_dir()
+    distribution_cache = reusable_gradle_distribution_cache(work_dir)
+    env["AOKUVUE_GRADLE_CACHE"] = str(distribution_cache)
+    log(f"Using Gradle distribution cache: {distribution_cache}")
+    gradle_home = work_dir / "gradle-user-home"
     gradle_home.mkdir(parents=True, exist_ok=True)
     env["GRADLE_USER_HOME"] = str(gradle_home)
     project_cache = work_dir / "gradle-project-cache"
