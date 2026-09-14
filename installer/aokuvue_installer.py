@@ -14,6 +14,7 @@ import tempfile
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 import zipfile
@@ -160,11 +161,24 @@ def request_json(url: str, timeout: int = 45):
     return json.loads(request_bytes(url, timeout, "application/vnd.github+json").decode("utf-8"))
 
 
-def download_file(url: str, destination: Path, progress=None, expected_sha256: str = "") -> str:
+def download_file(
+    url: str,
+    destination: Path,
+    progress=None,
+    expected_sha256: str = "",
+    accept: str = "*/*",
+) -> str:
     destination.parent.mkdir(parents=True, exist_ok=True)
     partial = destination.with_suffix(destination.suffix + ".part")
     partial.unlink(missing_ok=True)
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": USER_AGENT,
+            "Accept": accept,
+            "Accept-Encoding": "identity",
+        },
+    )
     digest = hashlib.sha256()
     try:
         with urllib.request.urlopen(request, timeout=180) as response, partial.open("wb") as output:
@@ -229,16 +243,44 @@ def latest_app_version(commit: str) -> str:
     return parse_build_version(text)
 
 
+def source_archive_urls(commit: str) -> list[str]:
+    return [
+        f"https://codeload.github.com/{REPOSITORY}/zip/{commit}",
+        f"{GITHUB_API}/zipball/{commit}",
+        f"https://github.com/{REPOSITORY}/archive/{commit}.zip",
+    ]
+
+
 def download_source(commit: str, work_dir: Path, log, set_progress) -> Path:
     archive = work_dir / f"aokuvue-{commit}.zip"
-    url = f"https://github.com/{REPOSITORY}/archive/{commit}.zip"
     log(f"Downloading Aokuvue source at {commit[:12]}…")
 
     def report(received: int, total: int):
         if total > 0:
             set_progress(min(32.0, 6.0 + (received / total) * 26.0))
 
-    download_file(url, archive, report)
+    errors: list[str] = []
+    mirrors = source_archive_urls(commit)
+    for index, url in enumerate(mirrors, start=1):
+        try:
+            log(f"Source mirror {index}/{len(mirrors)}: {urllib.parse.urlsplit(url).netloc}")
+            download_file(
+                url,
+                archive,
+                report,
+                accept="application/zip, application/octet-stream;q=0.9, */*;q=0.8",
+            )
+            if not zipfile.is_zipfile(archive):
+                raise RuntimeError("The downloaded response is not a valid ZIP archive")
+            break
+        except (OSError, RuntimeError, urllib.error.URLError) as error:
+            archive.unlink(missing_ok=True)
+            detail = f"{urllib.parse.urlsplit(url).netloc}: {error}"
+            errors.append(detail)
+            log(f"Source mirror {index} failed: {error}")
+    else:
+        raise RuntimeError("Unable to download the Aokuvue source archive. " + " | ".join(errors))
+
     source_root = work_dir / "source"
     source_root.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(archive) as source_zip:
@@ -767,7 +809,13 @@ class InstallerWindow:
 
     def _install_worker(self, destination: Path):
         try:
-            with tempfile.TemporaryDirectory(prefix=f"{APP_NAME.replace(' ', '')}Installer-") as temporary:
+            # Stage on the destination volume. This avoids filling the system temp
+            # drive and keeps the final directory swap on one filesystem.
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(
+                prefix=f".{APP_NAME.replace(' ', '')}Installer-",
+                dir=destination.parent,
+            ) as temporary:
                 work_dir = Path(temporary)
                 self._status(f"Checking the latest {APP_NAME} version…")
                 commit = latest_source_commit()
@@ -865,6 +913,8 @@ def run_self_test() -> int:
     assert APP_NAME.strip()
     assert INSTALLER_VERSION.strip()
     assert SOURCE_BRANCH in {"main", "dev"}
+    assert len(source_archive_urls("a" * 40)) == 3
+    assert source_archive_urls("a" * 40)[0].startswith("https://codeload.github.com/")
     assert default_install_dir().name == APP_NAME
     assert canonical_state_file().parent.parent.name == APP_NAME
     assert installer_cache_dir().parent.name == APP_NAME
