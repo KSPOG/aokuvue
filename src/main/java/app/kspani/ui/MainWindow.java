@@ -1156,10 +1156,10 @@ public final class MainWindow extends BorderPane {
         Region spacer=new Region();HBox.setHgrow(spacer,Priority.ALWAYS);
         Button mark=new Button("Mark watched");mark.getStyleClass().add("primary-button");
         mark.setOnAction(e->app.player().markWatchedNow());
-        HBox top=new HBox(12,back,title,serverName,serverButton,spacer,mark);top.setAlignment(Pos.CENTER_LEFT);top.setPadding(new Insets(10,14,10,14));top.getStyleClass().add("player-top");
+        HBox top=new HBox(12,back,title,serverName,serverButton,spacer,mark);top.setAlignment(Pos.CENTER_LEFT);top.setPadding(new Insets(10,14,10,14));top.setMinHeight(Region.USE_PREF_SIZE);top.setMaxHeight(Region.USE_PREF_SIZE);top.getStyleClass().add("player-top");
 
         MediaView view=new MediaView();view.setPreserveRatio(true);
-        Label subtitleOverlay=new Label();subtitleOverlay.getStyleClass().add("subtitle-overlay");subtitleOverlay.setStyle("-fx-font-size: "+app.player().settings().subtitleSize()+"px;");subtitleOverlay.setWrapText(true);subtitleOverlay.setMaxWidth(900);subtitleOverlay.setMouseTransparent(true);subtitleOverlay.setVisible(false);
+        Label subtitleOverlay=new Label();subtitleOverlay.getStyleClass().add("subtitle-overlay");subtitleOverlay.setStyle("-fx-font-size: "+app.player().settings().subtitleSize()+"px;");subtitleOverlay.setWrapText(true);subtitleOverlay.setMaxWidth(900);subtitleOverlay.setMinHeight(Region.USE_PREF_SIZE);subtitleOverlay.setMaxHeight(Region.USE_PREF_SIZE);subtitleOverlay.setMouseTransparent(true);subtitleOverlay.setVisible(false);
         StackPane video=new StackPane(view,subtitleOverlay,top);video.getStyleClass().add("video-stage");video.setMinSize(0,0);pane.setMinSize(0,0);view.fitWidthProperty().bind(video.widthProperty());view.fitHeightProperty().bind(video.heightProperty());StackPane.setAlignment(subtitleOverlay,Pos.BOTTOM_CENTER);StackPane.setMargin(subtitleOverlay,new Insets(0,48,30,48));StackPane.setAlignment(top,Pos.TOP_CENTER);pane.setCenter(video);
 
         Button prev=new Button("│◀");Button rewind=new Button("−"+app.player().settings().seekSeconds()+"s");Button play=new Button("▶");play.getStyleClass().add("player-primary-control");Button forward=new Button("+"+app.player().settings().seekSeconds()+"s");Button next=new Button("▶│");
