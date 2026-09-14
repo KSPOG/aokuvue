@@ -14,6 +14,8 @@ jobs:
   build-test-package:
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      AOKUVUE_GRADLE_CACHE: ${{ runner.temp }}/aokuvue-gradle-bootstrap
 
     steps:
       - name: Checkout
@@ -28,6 +30,13 @@ jobs:
 
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@v4
+
+      - name: Test clean installer Gradle bootstrap
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath $env:AOKUVUE_GRADLE_CACHE -Recurse -Force -ErrorAction SilentlyContinue
+          .\gradlew.bat --version --no-daemon
+          if ($LASTEXITCODE -ne 0) { throw "Gradle bootstrap failed with exit code $LASTEXITCODE" }
 
       - name: Build and test
         shell: pwsh
