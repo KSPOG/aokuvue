@@ -166,10 +166,10 @@ public final class SettingsUiEnhancer {
             Label title = new Label("Application version");
             title.getStyleClass().add("section-title");
 
-            Label version = new Label("Version " + AppVersion.current());
+            Label version = new Label(AppVersion.display());
             version.getStyleClass().add("fact-value");
 
-            Label detail = new Label("Current installed AOKUVUE build.");
+            Label detail = new Label("Current installed Aokuvue beta build.");
             detail.setWrapText(true);
             detail.getStyleClass().add("source-status");
 
