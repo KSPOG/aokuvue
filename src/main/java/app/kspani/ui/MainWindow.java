@@ -228,7 +228,7 @@ public final class MainWindow extends BorderPane {
         search.setPromptText("Search anime, stories, or worlds…");
         search.setPrefWidth(520);
         search.getStyleClass().add("top-search");
-        search.setOnAction(e -> runSearch(page == Page.MANGA ? MediaType.MANGA : MediaType.ANIME));
+        search.setOnAction(e -> { if(page==Page.HENTAI)runHentaiSearch();else runSearch(page == Page.MANGA ? MediaType.MANGA : MediaType.ANIME); });
         search.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ESCAPE) search.clear(); });
         Label shortcut = new Label("Ctrl K");
         shortcut.getStyleClass().add("shortcut-badge");
@@ -1586,6 +1586,16 @@ public final class MainWindow extends BorderPane {
         refresh.setOnAction(e -> load.run());
         Platform.runLater(load);
         return card;
+    }
+
+    private void runHentaiSearch() {
+        String q=search.getText().trim();if(q.isBlank())return;
+        page=Page.SEARCH;updateNav();status.setText("Searching Hentai for “"+q+"”…");
+        VBox loading=new VBox(12,new ProgressIndicator(),new Label("Searching…"));loading.setAlignment(Pos.CENTER);content.getChildren().setAll(loading);
+        app.anilist().searchHentai(q,36).whenComplete((items,error)->Platform.runLater(()->{
+            if(error!=null){status.setText("Search failed: "+root(error));content.getChildren().setAll(errorCard(root(error)));return;}
+            status.setText("Found "+items.size()+" Hentai results.");content.getChildren().setAll(searchResultsView(q,items));
+        }));
     }
 
     private VBox hentaiDirectoryCard() {

@@ -28,11 +28,8 @@ import javafx.scene.layout.VBox;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 /** Adds adult discovery and Manga Reading source discovery without coupling source logic to MainWindow. */
 public final class CatalogUiEnhancer {
@@ -67,24 +64,7 @@ public final class CatalogUiEnhancer {
     }
 
     private void loadAdultAnime() {
-        String query = """
-                query($perPage: Int) {
-                  Page(page: 1, perPage: $perPage) {
-                    media(type: ANIME, isAdult: true, sort: POPULARITY_DESC) { id }
-                  }
-                }
-                """;
-        app.anilist().execute(query, Map.of("perPage", 18)).thenCompose(rootNode -> {
-            List<CompletableFuture<AniMedia>> requests = new ArrayList<>();
-            rootNode.path("data").path("Page").path("media").forEach(node -> {
-                if (node.path("id").isInt()) {
-                    requests.add(app.anilist().details(node.path("id").asInt(), MediaType.ANIME)
-                            .exceptionally(error -> null));
-                }
-            });
-            return CompletableFuture.allOf(requests.toArray(CompletableFuture[]::new))
-                    .thenApply(ignored -> requests.stream().map(CompletableFuture::join).filter(java.util.Objects::nonNull).toList());
-        }).whenComplete((items, error) -> Platform.runLater(() -> {
+        app.anilist().browseAdultAnime("POPULARITY_DESC",18).whenComplete((items, error) -> Platform.runLater(() -> {
             if (error == null && items != null) adultAnime = List.copyOf(items);
             enhanceCurrentView();
         }));
@@ -110,7 +90,7 @@ public final class CatalogUiEnhancer {
         if (artUrl != null && !artUrl.isBlank()) art.setImage(new Image(artUrl, 190, 78, false, true, true));
         StackPane shade = new StackPane(); shade.getStyleClass().add("category-shade");
         Label title = new Label("Hentai"); title.getStyleClass().add("category-title");
-        Label caption = new Label("18+ STORIES"); caption.getStyleClass().add("category-caption");
+        Label caption = new Label("EXPLICIT HENTAI"); caption.getStyleClass().add("category-caption");
         VBox copy = new VBox(2, title, caption); copy.setAlignment(Pos.BOTTOM_CENTER);
         StackPane tile = new StackPane(art, shade, copy);
         tile.setId(HENTAI_TILE_ID); tile.setPrefSize(190, 78); tile.getStyleClass().add("category-tile");

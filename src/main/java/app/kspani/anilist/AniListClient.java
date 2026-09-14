@@ -48,7 +48,7 @@ public final class AniListClient {
                     media(type: $type, sort: $sort%s) { %s }
                   }
                 }
-                """.formatted(adultFilter(), mediaFields(false));
+                """.formatted(catalogFilter(type), mediaFields(false));
         Map<String,Object> vars = new LinkedHashMap<>();
         vars.put("type", type.name());
         vars.put("sort", List.of(sort));
@@ -60,7 +60,7 @@ public final class AniListClient {
         String query = """
                 query($sort: [MediaSort], $perPage: Int) {
                   Page(page: 1, perPage: $perPage) {
-                    media(type: ANIME, isAdult: true, sort: $sort) { %s }
+                    media(type: ANIME, isAdult: true, genre_in: ["Hentai"], sort: $sort) { %s }
                   }
                 }
                 """.formatted(mediaFields(false));
@@ -70,6 +70,18 @@ public final class AniListClient {
         return execute(query, vars).thenApply(root -> parseMediaArray(root.path("data").path("Page").path("media"), null));
     }
 
+    public CompletableFuture<List<AniMedia>> searchHentai(String text, int limit) {
+        String query = """
+                query($search: String, $perPage: Int) {
+                  Page(page: 1, perPage: $perPage) {
+                    media(search: $search, type: ANIME, isAdult: true, genre_in: ["Hentai"], sort: SEARCH_MATCH) { %s }
+                  }
+                }
+                """.formatted(mediaFields(false));
+        return execute(query, Map.of("search", text, "perPage", Math.max(1, Math.min(limit, 50))))
+                .thenApply(root -> parseMediaArray(root.path("data").path("Page").path("media"), null));
+    }
+
     public CompletableFuture<List<AniMedia>> search(String text, MediaType type, int limit) {
         String query = """
                 query($search: String, $type: MediaType, $perPage: Int) {
@@ -77,7 +89,7 @@ public final class AniListClient {
                     media(search: $search, type: $type, sort: SEARCH_MATCH%s) { %s }
                   }
                 }
-                """.formatted(adultFilter(), mediaFields(false));
+                """.formatted(catalogFilter(type), mediaFields(false));
         Map<String,Object> vars = Map.of(
                 "search", text,
                 "type", type.name(),
@@ -244,8 +256,10 @@ public final class AniListClient {
 
     public boolean authenticated() { return !config.get("anilist.accessToken").isBlank(); }
 
-    private String adultFilter() {
-        return config.getBoolean("content.includeAdult", true) ? "" : ", isAdult: false";
+    private String catalogFilter(MediaType type) {
+        String adult = config.getBoolean("content.includeAdult", true) ? "" : ", isAdult: false";
+        String hentai = type == MediaType.ANIME ? ", genre_not_in: [\"Hentai\"]" : "";
+        return adult + hentai;
     }
 
     private List<AniMedia> parseMediaArray(JsonNode array, UserListEntry override) {
