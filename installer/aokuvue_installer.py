@@ -798,13 +798,22 @@ def running_aokuvue_pids() -> list[int]:
 
 def stop_running_aokuvue(log) -> None:
     pids = running_aokuvue_pids()
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    if pids:
+        log(f"Closing the running {APP_NAME} application…")
+    # Also target the executable name directly in case localized tasklist output
+    # prevented PID parsing. A no-process result from taskkill is harmless.
+    subprocess.run(
+        ["taskkill", "/F", "/IM", f"{APP_NAME}.exe", "/T"],
+        capture_output=True,
+        timeout=10,
+        creationflags=creationflags,
+    )
     if not pids:
         return
-    log(f"Closing the running {APP_NAME} application…")
-    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     for pid in pids:
         subprocess.run(
-            ["taskkill", "/PID", str(pid), "/T"],
+            ["taskkill", "/F", "/PID", str(pid), "/T"],
             capture_output=True,
             timeout=10,
             creationflags=creationflags,
@@ -816,14 +825,31 @@ def stop_running_aokuvue(log) -> None:
         raise RuntimeError(f"{APP_NAME} is still running. Close it before installing the update.")
 
 
+def retry_file_operation(operation, description: str, log, timeout: float = 20.0):
+    """Retry a filesystem operation while Windows releases transient file locks."""
+    deadline = time.monotonic() + max(0.0, timeout)
+    delay = 0.25
+    waiting_logged = False
+    while True:
+        try:
+            return operation()
+        except OSError as error:
+            if time.monotonic() >= deadline:
+                raise RuntimeError(f"{description} failed because Windows kept a file locked: {error}") from error
+            if not waiting_logged:
+                log(f"Waiting for Windows to release application files before {description.lower()}…")
+                waiting_logged = True
+            time.sleep(delay)
+            delay = min(delay * 1.5, 1.5)
+
+
 def install_app_image(app_image: Path, destination: Path, log, set_progress) -> None:
     destination = destination.expanduser().absolute()
     parent = destination.parent
     parent.mkdir(parents=True, exist_ok=True)
     staging = parent / f".{APP_NAME}.staging-{uuid.uuid4().hex[:8]}"
-    backup = parent / f".{APP_NAME}.previous"
+    backup = parent / f".{APP_NAME}.previous-{uuid.uuid4().hex[:8]}"
     shutil.rmtree(staging, ignore_errors=True)
-    shutil.rmtree(backup, ignore_errors=True)
 
     log(f"Staging {APP_NAME} in {destination}…")
     shutil.copytree(app_image, staging)
@@ -833,21 +859,48 @@ def install_app_image(app_image: Path, destination: Path, log, set_progress) -> 
     set_progress(94)
 
     had_existing = destination.exists()
+    existing_moved = False
+    new_activated = False
     try:
         if had_existing:
             log(f"Replacing the existing {APP_NAME} installation…")
-            destination.replace(backup)
-        staging.replace(destination)
+            retry_file_operation(
+                lambda: destination.replace(backup),
+                f"move the existing {APP_NAME} installation to its backup",
+                log,
+            )
+            existing_moved = True
+        retry_file_operation(
+            lambda: staging.replace(destination),
+            f"activate the new {APP_NAME} installation",
+            log,
+        )
+        new_activated = True
         if not (destination / f"{APP_NAME}.exe").is_file():
             raise RuntimeError(f"Installed {APP_NAME}.exe could not be verified")
-        shutil.rmtree(backup, ignore_errors=True)
-    except Exception:
-        if destination.exists():
-            shutil.rmtree(destination, ignore_errors=True)
-        if backup.exists():
-            backup.replace(destination)
+        if backup.exists() and not cleanup_temporary_directory(backup, log):
+            log(f"Previous {APP_NAME} version cleanup will be retried during a later update.")
+    except Exception as install_error:
+        rollback_error: Exception | None = None
+        if new_activated and destination.exists():
+            if not cleanup_temporary_directory(destination, log):
+                rollback_error = RuntimeError(f"could not remove the incomplete installation at {destination}")
+        if existing_moved and backup.exists():
+            try:
+                retry_file_operation(
+                    lambda: backup.replace(destination),
+                    f"restore the previous {APP_NAME} installation",
+                    log,
+                )
+            except Exception as error:
+                rollback_error = error
         shutil.rmtree(staging, ignore_errors=True)
-        raise
+        if rollback_error is not None:
+            raise RuntimeError(
+                f"{install_error}. Automatic rollback also failed: {rollback_error}. "
+                f"The previous installation remains at {backup}."
+            ) from install_error
+        raise install_error
     set_progress(100)
 
 
@@ -1250,6 +1303,25 @@ def run_self_test() -> int:
     finally:
         shutil.rmtree = original_rmtree
     assert cleanup_calls == [Path("cleanup-probe")]
+    retry_attempts: list[int] = []
+    original_sleep = time.sleep
+    try:
+        time.sleep = lambda _seconds: None
+
+        def transient_operation():
+            retry_attempts.append(1)
+            if len(retry_attempts) == 1:
+                raise OSError(5, "transient lock")
+            return "completed"
+
+        assert retry_file_operation(
+            transient_operation,
+            "complete self-test operation",
+            lambda _message: None,
+        ) == "completed"
+    finally:
+        time.sleep = original_sleep
+    assert len(retry_attempts) == 2
     print(f"{APP_NAME} Installer & Updater v{INSTALLER_VERSION} ({SOURCE_BRANCH}) self-test passed")
     return 0
 
