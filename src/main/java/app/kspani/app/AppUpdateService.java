@@ -37,6 +37,7 @@ public final class AppUpdateService {
 
     private static final Pattern GRADLE_VERSION = Pattern.compile(
             "(?m)^\\s*version\\s*=\\s*['\"]([^'\"]+)['\"]\\s*$");
+    private static final Pattern SHA256 = Pattern.compile("[0-9a-fA-F]{64}");
     private static final String INSTALLER_ASSET = "AokuvueInstaller.exe";
 
     private final ObjectMapper mapper;
@@ -97,10 +98,12 @@ public final class AppUpdateService {
                 Path partial = updaterDirectory.resolve(INSTALLER_ASSET + ".part");
                 Files.deleteIfExists(partial);
 
+                if (info.installerSha256() == null || !SHA256.matcher(info.installerSha256()).matches()) {
+                    throw new IOException("The published updater does not have a valid SHA-256 digest");
+                }
                 download(info.installerUrl(), partial);
                 String actualSha256 = sha256(partial);
-                if (!info.installerSha256().isBlank()
-                        && !actualSha256.equalsIgnoreCase(info.installerSha256())) {
+                if (!actualSha256.equalsIgnoreCase(info.installerSha256())) {
                     Files.deleteIfExists(partial);
                     throw new IOException("Updater SHA-256 verification failed");
                 }
@@ -145,8 +148,23 @@ public final class AppUpdateService {
                     if (parent != null) return parent;
                 }
             } catch (RuntimeException ignored) {
-                // Fall through to the normal Windows per-user default.
+                // Try the bundled jpackage runtime path next.
             }
+        }
+
+        // jpackage app-images normally place java.home at <install>/runtime. This preserves a
+        // custom installation path even if ProcessHandle reports the bundled java executable.
+        try {
+            String javaHome = System.getProperty("java.home", "").trim();
+            if (!javaHome.isBlank()) {
+                Path runtime = Path.of(javaHome).toAbsolutePath().normalize();
+                Path parent = runtime.getParent();
+                if (parent != null && Files.isRegularFile(parent.resolve("Aokuvue.exe"))) {
+                    return parent;
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // Fall through to the normal Windows per-user default.
         }
 
         String localAppData = System.getenv("LOCALAPPDATA");
@@ -199,6 +217,7 @@ public final class AppUpdateService {
                     String sha = digest.toLowerCase(Locale.ROOT).startsWith("sha256:")
                             ? digest.substring("sha256:".length()).trim()
                             : "";
+                    if (!SHA256.matcher(sha).matches()) continue;
                     InstallerRelease candidate = new InstallerRelease(version, URI.create(url), sha);
                     if (best == null || compareVersions(candidate.version(), best.version()) > 0) best = candidate;
                 }
@@ -212,7 +231,7 @@ public final class AppUpdateService {
     private CompletableFuture<String> fetchText(URI uri) {
         HttpRequest request = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofSeconds(20))
-                .header("Accept", "application/vnd.github+json")
+                .header("Accept", "*/*")
                 .header("User-Agent", "Aokuvue/" + AppVersion.current())
                 .GET()
                 .build();
