@@ -25,6 +25,7 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -61,6 +62,7 @@ import java.util.Set;
  * keeping Manga Reading source discovery decoupled from the large MainWindow class.
  */
 public final class CatalogUiEnhancer {
+    private static final int CATALOG_RENDER_BATCH_SIZE = 8;
     private static final String HENTAI_TILE_ID = "aokuvue-hentai-category";
     private static final String MANGA_SOURCE_ID = "aokuvue-manga-source-card";
     private static final String MANGA_SETTINGS_ID = "aokuvue-manga-directory-settings";
@@ -285,8 +287,11 @@ public final class CatalogUiEnhancer {
         VBox.setMargin(grid, new Insets(18, AokuvueTheme.PAGE_GUTTER, 12, AokuvueTheme.PAGE_GUTTER));
         VBox.setMargin(paging, new Insets(0, AokuvueTheme.PAGE_GUTTER, 40, AokuvueTheme.PAGE_GUTTER));
         ScrollPane scroll = scroll(body);
-        scroll.vvalueProperty().addListener((obs, oldValue, newValue) -> {
-            if (newValue.doubleValue() > 0.90) pager.loadNext();
+        scroll.addEventFilter(ScrollEvent.SCROLL, event -> {
+            if (event.getDeltaY() >= 0) return;
+            Platform.runLater(() -> {
+                if (scroll.getVvalue() > 0.90) pager.loadNext();
+            });
         });
         replaceContent(scroll);
         pager.loadNext();
@@ -381,25 +386,59 @@ public final class CatalogUiEnhancer {
             loadMore.setDisable(true);
             int requested = page + 1;
             int token = generation;
+            long startedAt = System.nanoTime();
             discovery.browse(filter(), requested).whenComplete((result, error) -> Platform.runLater(() -> {
                 if (token != generation) return;
-                loading = false;
-                progress.setVisible(false);
                 if (error != null) {
+                    loading = false;
+                    progress.setVisible(false);
                     count.setText("AniList error: " + rootMessage(error));
                     loadMore.setDisable(false);
+                    System.err.println("[Aokuvue][Catalog] " + base.type() + " page " + requested
+                            + " failed: " + rootMessage(error));
                     return;
                 }
                 page = result.page();
                 total = result.total();
                 hasNext = result.hasNextPage();
+                List<AniMedia> pending = new ArrayList<>();
                 for (AniMedia media : result.items()) {
-                    if (ids.add(media.id())) grid.getChildren().add(new MediaCard(media, CatalogUiEnhancer.this::openDetails));
+                    if (ids.add(media.id())) pending.add(media);
                 }
-                count.setText(ids.size() + (total > 0 ? " of " + total : "") + " titles loaded");
-                loadMore.setText(hasNext ? "Load more" : "All titles loaded");
-                loadMore.setDisable(!hasNext);
+                count.setText("Rendering " + pending.size() + " titles…");
+                appendCards(pending, 0, token, requested, startedAt);
             }));
+        }
+
+        private void appendCards(List<AniMedia> items, int offset, int token, int requested, long startedAt) {
+            if (token != generation) return;
+            int end = Math.min(items.size(), offset + CATALOG_RENDER_BATCH_SIZE);
+            for (int index = offset; index < end; index++) {
+                AniMedia media = items.get(index);
+                try {
+                    grid.getChildren().add(new MediaCard(media, CatalogUiEnhancer.this::openDetails));
+                } catch (RuntimeException error) {
+                    System.err.println("[Aokuvue][Catalog] Skipped media " + media.id()
+                            + " because its card could not be rendered: " + rootMessage(error));
+                }
+            }
+            if (end < items.size()) {
+                Platform.runLater(() -> appendCards(items, end, token, requested, startedAt));
+                return;
+            }
+            finishLoad(requested, startedAt);
+        }
+
+        private void finishLoad(int requested, long startedAt) {
+            loading = false;
+            progress.setVisible(false);
+            count.setText(ids.size() + (total > 0 ? " of " + total : "") + " titles loaded");
+            loadMore.setText(hasNext ? "Load more" : "All titles loaded");
+            loadMore.setDisable(!hasNext);
+            long elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L;
+            System.out.println("[Aokuvue][Catalog] " + base.type() + " page " + requested
+                    + " ready in " + elapsedMs + " ms; rendered=" + ids.size()
+                    + ", hasNext=" + hasNext);
         }
     }
 

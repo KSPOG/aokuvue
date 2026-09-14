@@ -37,7 +37,7 @@ public final class EverythingMoeMangaDirectory {
         HttpRequest request = HttpRequest.newBuilder(DIRECTORY_URI)
                 .timeout(Duration.ofSeconds(15))
                 .header("Accept", "text/html,application/xhtml+xml")
-                .header("User-Agent", "Aokuvue/1.5.16")
+                .header("User-Agent", "Aokuvue/1.5.24")
                 .GET().build();
         return client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenApply(response -> {

@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 public final class JsonHttpClient {
     private static final int MAX_RETRIES = 2;
-    private static final String APP_USER_AGENT = "Aokuvue/1.5.23";
+    private static final String APP_USER_AGENT = "Aokuvue/1.5.24";
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient client = HttpClient.newBuilder()
