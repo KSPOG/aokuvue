@@ -29,6 +29,16 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@v4
 
+      - name: Test clean installer Gradle bootstrap
+        shell: pwsh
+        run: |
+          $cache = Join-Path $env:RUNNER_TEMP 'aokuvue-gradle-bootstrap'
+          "AOKUVUE_GRADLE_CACHE=$cache" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $env:AOKUVUE_GRADLE_CACHE = $cache
+          Remove-Item -LiteralPath $cache -Recurse -Force -ErrorAction SilentlyContinue
+          .\gradlew.bat --version --no-daemon
+          if ($LASTEXITCODE -ne 0) { throw "Gradle bootstrap failed with exit code $LASTEXITCODE" }
+
       - name: Build and test
         shell: pwsh
         run: .\gradlew.bat clean test installDist --no-daemon --stacktrace
