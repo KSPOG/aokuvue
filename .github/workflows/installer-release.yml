@@ -1,0 +1,103 @@
+name: Aokuvue Installer
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'installer/**'
+      - '.github/workflows/installer-release.yml'
+      - 'src/main/resources/images/aokuvue-icon.png'
+      - 'src/main/resources/images/aokuvue-moonlight.png'
+      - 'src/main/resources/images/aokuvue.ico'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'installer/**'
+      - '.github/workflows/installer-release.yml'
+      - 'src/main/resources/images/aokuvue-icon.png'
+      - 'src/main/resources/images/aokuvue-moonlight.png'
+      - 'src/main/resources/images/aokuvue.ico'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller pillow
+
+      - name: Self-test installer
+        shell: pwsh
+        run: python installer\aokuvue_installer.py --self-test
+
+      - name: Build single-file installer
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --onefile --windowed `
+            --name AokuvueInstaller `
+            --icon src\main\resources\images\aokuvue.ico `
+            --add-data "src\main\resources\images\aokuvue-icon.png;assets" `
+            --add-data "src\main\resources\images\aokuvue-moonlight.png;assets" `
+            --add-data "src\main\resources\images\aokuvue.ico;assets" `
+            installer\aokuvue_installer.py
+          if (!(Test-Path 'dist\AokuvueInstaller.exe')) {
+            throw 'AokuvueInstaller.exe was not produced.'
+          }
+          $hash = (Get-FileHash -Algorithm SHA256 'dist\AokuvueInstaller.exe').Hash.ToLowerInvariant()
+          "$hash  AokuvueInstaller.exe" | Out-File -Encoding ascii 'dist\AokuvueInstaller.exe.sha256'
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AokuvueInstaller-1.1.0
+          path: |
+            dist/AokuvueInstaller.exe
+            dist/AokuvueInstaller.exe.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish Aokuvue Installer v1.1.0
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'installer-v1.1.0'
+          gh release view $tag --repo '${{ github.repository }}' *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release $tag already exists. Bump INSTALLER_VERSION and the workflow release version before publishing another installer."
+          }
+          gh release create $tag `
+            'dist\AokuvueInstaller.exe' `
+            'dist\AokuvueInstaller.exe.sha256' `
+            --repo '${{ github.repository }}' `
+            --target '${{ github.sha }}' `
+            --title 'Aokuvue Installer v1.1.0' `
+            --notes @"
+          # Aokuvue Installer v1.1.0
+
+          - Uses the canonical **Aokuvue** product name throughout the installer.
+          - Remembers the last selected installation folder and reuses it for future installs and updates.
+          - Supports application-driven update handoff with `--update`, `--install-dir`, and `--wait-pid`.
+          - Downloads the exact current `main` commit, runs tests, packages Aokuvue, and replaces the selected installation only after the running app has closed.
+          - Downloads Eclipse Temurin JDK 21 from Adoptium and verifies its published SHA-256 before use.
+          - Keeps the Gradle and JDK build-tool caches outside the temporary source checkout.
+
+          The installer executable is currently unsigned, so Windows SmartScreen may warn on first launch.
+          "@
