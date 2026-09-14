@@ -12,11 +12,17 @@ import app.kspani.source.SourceSeries;
 import app.kspani.source.SubtitleTrack;
 import app.kspani.source.VideoServer;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -35,9 +41,12 @@ import java.util.regex.Pattern;
  */
 public final class AnikotoAnimeSource implements AnimeSource {
     private static final URI BASE = URI.create("https://anikototv.to/");
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final byte[] MEGAPLAY_KEY = paddedKey("i?LMTAx0Q6,:}50U", 32);
+    private static final byte[] MEGAPLAY_IV = "W0;27ToaUpl_P%'c".getBytes(StandardCharsets.UTF_8);
     private static final String BROWSER_USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                    + "(KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36";
+                    + "(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36";
     private static final Map<String, String> AJAX_HEADERS = Map.of(
             "X-Requested-With", "XMLHttpRequest",
             "Referer", BASE.toString()
@@ -191,25 +200,55 @@ public final class AnikotoAnimeSource implements AnimeSource {
                         "The Anikoto video host no longer exposes its player identifier."));
             }
 
-            // MegaPlay's current native metadata endpoint is /stream/getSources. The previous
-            // /stream/getSourcesNew route can return a successful JSON payload with no usable
-            // stream, which is what produced the misleading "no playable stream" error.
-            URI sourceEndpoint = URI.create(playerOrigin + "/stream/getSources?id="
-                    + URLEncoder.encode(dataId, StandardCharsets.UTF_8));
+            // MegaPlay currently returns an encrypted native-source payload from this endpoint.
+            // Decode it below while retaining support for older plain source response shapes.
+            StringBuilder sourceUrl = new StringBuilder(playerOrigin)
+                    .append("/stream/getSourcesNew?id=")
+                    .append(URLEncoder.encode(dataId, StandardCharsets.UTF_8));
+            String cdn = queryParameter(embed, "s");
+            if (!cdn.isBlank()) {
+                sourceUrl.append("&s=").append(URLEncoder.encode(cdn, StandardCharsets.UTF_8));
+            }
+            URI sourceEndpoint = URI.create(sourceUrl.toString());
             Map<String, String> sourceHeaders = new LinkedHashMap<>();
-            sourceHeaders.put("Accept", "application/json,text/plain,*/*");
             sourceHeaders.put("Referer", embed.toString());
-            sourceHeaders.put("Origin", playerOrigin);
+            sourceHeaders.put("X-Requested-With", "XMLHttpRequest");
             sourceHeaders.put("User-Agent", BROWSER_USER_AGENT);
 
             return http.get(sourceEndpoint, sourceHeaders)
-                    .thenApply(json -> parsePlayerSources(server, embed, json));
+                    .thenApply(json -> parsePlayerSources(server, embed, json))
+                    .thenCompose(this::validatePlayerStream);
+        });
+    }
+
+    private CompletableFuture<ResolvedServer> validatePlayerStream(ResolvedServer resolved) {
+        if (resolved.videos().isEmpty()) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException("MegaPlay resolved no native video variants."));
+        }
+        PlaybackSource selected = resolved.videos().get(0);
+        if (!"hls".equalsIgnoreCase(selected.container())
+                && !selected.uri().getPath().toLowerCase().endsWith(".m3u8")) {
+            return CompletableFuture.completedFuture(resolved);
+        }
+        Map<String, String> validationHeaders = new LinkedHashMap<>(selected.headers());
+        validationHeaders.remove("Origin");
+        return http.getText(selected.uri(), validationHeaders).thenApply(manifest -> {
+            String normalized = manifest == null ? "" : manifest.replaceFirst("^\\uFEFF", "").stripLeading();
+            if (!normalized.startsWith("#EXTM3U")) {
+                throw new IllegalStateException("MegaPlay returned an invalid HLS manifest.");
+            }
+            return resolved;
         });
     }
 
     static ResolvedServer parsePlayerSources(VideoServer server, URI embed, JsonNode json) {
         List<SourceCandidate> candidates = new ArrayList<>();
         collectSourceCandidates(json, candidates);
+        String encryptedPayload = json.path("enc").asText("");
+        if (!encryptedPayload.isBlank()) {
+            collectSourceCandidates(decryptMegaPlayPayload(encryptedPayload), candidates);
+        }
 
         List<PlaybackSource> videos = new ArrayList<>();
         Set<String> seenVideos = new LinkedHashSet<>();
@@ -240,6 +279,32 @@ public final class AnikotoAnimeSource implements AnimeSource {
         Set<String> seenSubtitles = new LinkedHashSet<>();
         collectSubtitleTracks(json, embed, subtitles, seenSubtitles);
         return new ResolvedServer(server, videos, subtitles, List.of());
+    }
+
+    static JsonNode decryptMegaPlayPayload(String encryptedPayload) {
+        try {
+            byte[] encrypted = Base64.getUrlDecoder().decode(encryptedPayload);
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            cipher.init(Cipher.DECRYPT_MODE,
+                    new SecretKeySpec(MEGAPLAY_KEY, "AES"), new IvParameterSpec(MEGAPLAY_IV));
+            JsonNode decoded = JSON.readTree(new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8));
+            if (decoded == null || decoded.isNull()) {
+                throw new IllegalStateException("MegaPlay's decoded stream response was empty.");
+            }
+            return decoded;
+        } catch (IllegalStateException error) {
+            throw error;
+        } catch (GeneralSecurityException | IllegalArgumentException | java.io.IOException error) {
+            throw new IllegalStateException(
+                    "MegaPlay's encrypted stream response could not be decoded.", error);
+        }
+    }
+
+    private static byte[] paddedKey(String value, int length) {
+        byte[] result = new byte[length];
+        byte[] source = value.getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(source, 0, result, 0, Math.min(source.length, result.length));
+        return result;
     }
 
     private static void collectSourceCandidates(JsonNode node, List<SourceCandidate> out) {
@@ -333,6 +398,19 @@ public final class AnikotoAnimeSource implements AnimeSource {
             throw new IllegalArgumentException("A valid MegaPlay embed URL is required.");
         }
         return uri.getScheme() + "://" + uri.getAuthority();
+    }
+
+    private static String queryParameter(URI uri, String name) {
+        if (uri == null || uri.getRawQuery() == null || name == null) return "";
+        for (String pair : uri.getRawQuery().split("&")) {
+            int separator = pair.indexOf('=');
+            String key = separator < 0 ? pair : pair.substring(0, separator);
+            if (name.equalsIgnoreCase(key)) {
+                return separator < 0 ? "" : java.net.URLDecoder.decode(
+                        pair.substring(separator + 1), StandardCharsets.UTF_8);
+            }
+        }
+        return "";
     }
 
     private static URI absoluteHttpUri(String value) {

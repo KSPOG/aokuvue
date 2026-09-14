@@ -5,7 +5,12 @@ import app.kspani.source.VideoServer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -105,6 +110,34 @@ final class AnikotoAnimeSourceTest {
         assertEquals(Integer.valueOf(1080), resolved.videos().get(1).quality());
         assertEquals(Integer.valueOf(720), resolved.videos().get(2).quality());
         assertEquals("https://megaplay.buzz", resolved.videos().get(0).headers().get("Origin"));
+        assertEquals(1, resolved.subtitles().size());
+        assertEquals("English", resolved.subtitles().get(0).language());
+    }
+
+    @Test
+    void decryptsCurrentMegaPlayResponseAndKeepsOuterSubtitles() throws Exception {
+        String clear = "{\"file\":\"https://cdn.example/anime/master.m3u8\"}";
+        byte[] key = new byte[32];
+        byte[] keyText = "i?LMTAx0Q6,:}50U".getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(keyText, 0, key, 0, keyText.length);
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(key, "AES"),
+                new IvParameterSpec("W0;27ToaUpl_P%'c".getBytes(StandardCharsets.UTF_8)));
+        String encrypted = Base64.getUrlEncoder().withoutPadding().encodeToString(
+                cipher.doFinal(clear.getBytes(StandardCharsets.UTF_8)));
+        var json = new ObjectMapper().readTree("""
+                {"enc":"%s","tracks":[
+                  {"file":"https://cdn.example/subs/english.vtt","label":"English","kind":"captions"}
+                ]}
+                """.formatted(encrypted));
+        VideoServer server = new VideoServer(
+                "anikoto", "one", "HD-1 · SUB", "token", Map.of());
+
+        var resolved = AnikotoAnimeSource.parsePlayerSources(
+                server, URI.create("https://megaplay.buzz/stream/s-2/1/sub"), json);
+
+        assertEquals(URI.create("https://cdn.example/anime/master.m3u8"),
+                resolved.videos().get(0).uri());
         assertEquals(1, resolved.subtitles().size());
         assertEquals("English", resolved.subtitles().get(0).language());
     }

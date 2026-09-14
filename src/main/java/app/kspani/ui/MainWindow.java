@@ -1123,7 +1123,20 @@ public final class MainWindow extends BorderPane {
                 : app.episodes().selectionFor(media).sourceId();
         status.setText("Resolving Episode "+ep.number()+" through "+resolverName+"…");
         app.episodes().resolveEpisode(media,currentEpisodeLoad,ep).whenComplete((resolved,error)->Platform.runLater(()->{
-            if(error!=null){status.setText("Playback source failed: "+root(error));return;}
+            if(error!=null){
+                String reason=root(error);
+                System.err.println("[Aokuvue][Playback] resolve failed"
+                        +" mediaId="+media.id()+" episode="+ep.number()
+                        +" source="+currentEpisodeLoad.source().descriptor().id()
+                        +" reason="+reason);
+                status.setText("Playback source failed: "+reason);return;
+            }
+            System.out.println("[Aokuvue][Playback] resolved"
+                    +" mediaId="+media.id()+" episode="+ep.number()
+                    +" source="+resolved.source().descriptor().id()
+                    +" server="+resolved.resolved().server().name()
+                    +" videos="+resolved.resolved().videos().size()
+                    +" subtitles="+resolved.resolved().subtitles().size());
             showPlayer(new PlayerSession(media,currentEpisodeLoad,resolved));
         }));
     }

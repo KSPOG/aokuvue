@@ -286,8 +286,45 @@ public final class EpisodeCoordinator {
             }
             List<VideoServer> ranked = EpisodeLanguageSelector.rankServers(
                     servers, selection.languagePreference(), selection.serverName());
-            return resolveServer(media, loaded, episode, ranked.get(0));
+            return tryResolveServers(media, loaded, episode, ranked, 0, new java.util.ArrayList<>());
         });
+    }
+
+    private CompletableFuture<PlaybackResolution> tryResolveServers(
+            AniMedia media,
+            EpisodeLoadResult loaded,
+            SourceEpisode episode,
+            List<VideoServer> servers,
+            int index,
+            List<String> failures
+    ) {
+        if (index >= servers.size()) {
+            String detail = failures.isEmpty() ? "no server details" : String.join("; ", failures);
+            return CompletableFuture.failedFuture(new IllegalStateException(
+                    "All " + servers.size() + " video server(s) failed for Episode "
+                            + episode.number() + ": " + detail));
+        }
+        VideoServer server = servers.get(index);
+        return resolveServer(media, loaded, episode, server).handle((resolved, error) -> {
+            if (error == null && resolved != null) {
+                return CompletableFuture.completedFuture(resolved);
+            }
+            String reason = rootMessage(error);
+            failures.add(server.name() + " — " + reason);
+            System.err.println("[Aokuvue][Playback] server rejected"
+                    + " mediaId=" + media.id() + " episode=" + episode.number()
+                    + " source=" + loaded.source().descriptor().id()
+                    + " server=" + server.name() + " reason=" + reason);
+            return tryResolveServers(media, loaded, episode, servers, index + 1, failures);
+        }).thenCompose(java.util.function.Function.identity());
+    }
+
+    private static String rootMessage(Throwable error) {
+        if (error == null) return "unknown failure";
+        Throwable root = error;
+        while (root.getCause() != null && root.getCause() != root) root = root.getCause();
+        String message = root.getMessage();
+        return message == null || message.isBlank() ? root.getClass().getSimpleName() : message;
     }
 
     private CompletableFuture<PlaybackResolution> tryResolveIndexedEpisode(
