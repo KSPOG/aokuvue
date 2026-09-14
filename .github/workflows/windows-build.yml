@@ -47,15 +47,15 @@ jobs:
         shell: pwsh
         run: |
           $version = (.\gradlew.bat -q printVersion --no-daemon | Select-Object -Last 1).Trim()
-          if (-not $version) { throw 'Could not determine AOKUVUE version.' }
+          if (-not $version) { throw 'Could not determine Aokuvue version.' }
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           if (Test-Path dist\Aokuvue) { Remove-Item dist\Aokuvue -Recurse -Force }
           & jpackage `
             --type app-image `
             --name Aokuvue `
             --app-version $version `
-            --vendor 'AOKUVUE' `
-            --description 'AOKUVUE anime and manga desktop application' `
+            --vendor 'Aokuvue' `
+            --description 'Aokuvue anime and manga desktop application' `
             --input 'build\install\Aokuvue\lib' `
             --main-jar "Aokuvue-$version.jar" `
             --main-class app.kspani.MainLauncher `
