@@ -2,7 +2,7 @@ name: Aokuvue Installer
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
     paths:
       - 'installer/**'
       - '.github/workflows/installer-release.yml'
@@ -10,7 +10,7 @@ on:
       - 'src/main/resources/images/aokuvue-moonlight.png'
       - 'src/main/resources/images/aokuvue.ico'
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev ]
     paths:
       - 'installer/**'
       - '.github/workflows/installer-release.yml'
@@ -65,7 +65,7 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AokuvueInstaller-1.1.1
+          name: AokuvueInstaller-1.1.1-${{ github.ref_name }}
           path: |
             dist/AokuvueInstaller.exe
             dist/AokuvueInstaller.exe.sha256
