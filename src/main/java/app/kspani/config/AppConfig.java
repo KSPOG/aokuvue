@@ -48,6 +48,7 @@ public final class AppConfig {
         removeRetiredSourceSettings();
         putIfMissing("content.includeAdult", "true");
         putIfMissing("player.watchPercentage", "0.85");
+        putIfMissing("player.autoMarkWatched", "true");
         putIfMissing("player.autoPlay", "true");
         putIfMissing("player.seekSeconds", "10");
         putIfMissing("player.defaultSpeed", "1.0");

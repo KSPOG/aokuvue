@@ -11,6 +11,7 @@ import app.kspani.source.EpisodeCoordinator;
 import app.kspani.source.SourceRegistry;
 import app.kspani.source.PlaybackLanguage;
 import app.kspani.source.EverythingMoeProviderDirectory;
+import app.kspani.source.EverythingMoeHentaiDirectory;
 import app.kspani.source.SourceStateRepository;
 import app.kspani.sources.AnikotoAnimeSource;
 
@@ -24,6 +25,7 @@ public final class AppContext implements AutoCloseable {
     private final SourceRegistry sources;
     private final SourceStateRepository sourceState;
     private final EverythingMoeProviderDirectory providerDirectory;
+    private final EverythingMoeHentaiDirectory hentaiDirectory;
     private final EpisodeCoordinator episodes;
     private final PlaybackProgressRepository playbackProgress;
     private final PlayerController player;
@@ -39,6 +41,7 @@ public final class AppContext implements AutoCloseable {
             SourceRegistry sources,
             SourceStateRepository sourceState,
             EverythingMoeProviderDirectory providerDirectory,
+            EverythingMoeHentaiDirectory hentaiDirectory,
             EpisodeCoordinator episodes,
             PlaybackProgressRepository playbackProgress,
             PlayerController player,
@@ -53,6 +56,7 @@ public final class AppContext implements AutoCloseable {
         this.sources = sources;
         this.sourceState = sourceState;
         this.providerDirectory = providerDirectory;
+        this.hentaiDirectory = hentaiDirectory;
         this.episodes = episodes;
         this.playbackProgress = playbackProgress;
         this.player = player;
@@ -71,6 +75,7 @@ public final class AppContext implements AutoCloseable {
         SourceRegistry sources = createSourceRegistry(http);
 
         EverythingMoeProviderDirectory providerDirectory = new EverythingMoeProviderDirectory(sources);
+        EverythingMoeHentaiDirectory hentaiDirectory = new EverythingMoeHentaiDirectory();
         SourceStateRepository sourceState = new SourceStateRepository(database, http.mapper());
         EpisodeCoordinator episodes = new EpisodeCoordinator(
                 sources,
@@ -82,7 +87,7 @@ public final class AppContext implements AutoCloseable {
         PlayerController player = new PlayerController(config, playbackProgress, anilist, listService);
         FeedbackService feedback = new FeedbackService(http.mapper());
 
-        return new AppContext(config, http, database, anilist, auth, listService, sources, sourceState, providerDirectory, episodes, playbackProgress, player, feedback);
+        return new AppContext(config, http, database, anilist, auth, listService, sources, sourceState, providerDirectory, hentaiDirectory, episodes, playbackProgress, player, feedback);
     }
 
     static SourceRegistry createSourceRegistry(JsonHttpClient http) {
@@ -98,6 +103,7 @@ public final class AppContext implements AutoCloseable {
     public SourceRegistry sources() { return sources; }
     public SourceStateRepository sourceState() { return sourceState; }
     public EverythingMoeProviderDirectory providerDirectory() { return providerDirectory; }
+    public EverythingMoeHentaiDirectory hentaiDirectory() { return hentaiDirectory; }
     public EpisodeCoordinator episodes() { return episodes; }
     public PlaybackProgressRepository playbackProgress() { return playbackProgress; }
     public PlayerController player() { return player; }

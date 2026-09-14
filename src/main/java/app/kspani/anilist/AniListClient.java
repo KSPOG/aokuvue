@@ -56,6 +56,20 @@ public final class AniListClient {
         return execute(query, vars).thenApply(root -> parseMediaArray(root.path("data").path("Page").path("media"), null));
     }
 
+    public CompletableFuture<List<AniMedia>> browseAdultAnime(String sort, int limit) {
+        String query = """
+                query($sort: [MediaSort], $perPage: Int) {
+                  Page(page: 1, perPage: $perPage) {
+                    media(type: ANIME, isAdult: true, sort: $sort) { %s }
+                  }
+                }
+                """.formatted(mediaFields(false));
+        Map<String,Object> vars = new LinkedHashMap<>();
+        vars.put("sort", List.of(sort));
+        vars.put("perPage", Math.max(1, Math.min(limit, 50)));
+        return execute(query, vars).thenApply(root -> parseMediaArray(root.path("data").path("Page").path("media"), null));
+    }
+
     public CompletableFuture<List<AniMedia>> search(String text, MediaType type, int limit) {
         String query = """
                 query($search: String, $type: MediaType, $perPage: Int) {

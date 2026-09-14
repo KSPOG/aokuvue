@@ -51,7 +51,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public final class MainWindow extends BorderPane {
-    private enum Page { HOME, ANIME, MANGA, MY_LIST, SEARCH, SETTINGS, DETAILS, PLAYER }
+    private enum Page { HOME, ANIME, HENTAI, MANGA, MY_LIST, SEARCH, SETTINGS, DETAILS, PLAYER }
 
     private record SeasonChoice(AnimeSeasonRef season, int ordinal) {
         @Override public String toString() { return season.displayLabel(ordinal); }
@@ -100,6 +100,7 @@ public final class MainWindow extends BorderPane {
 
     private final Button homeNav = nav("Home");
     private final Button animeNav = nav("Anime");
+    private final Button hentaiNav = nav("Hentai");
     private final Button mangaNav = nav("Manga");
     private final Button listNav = nav("My List");
     private final Button settingsNav = nav("Settings");
@@ -109,6 +110,7 @@ public final class MainWindow extends BorderPane {
     private Viewer viewer;
     private List<AniMedia> trendingAnime = List.of();
     private List<AniMedia> popularAnime = List.of();
+    private List<AniMedia> adultAnime = List.of();
     private List<AniMedia> trendingManga = List.of();
     private List<AniMedia> animeList = List.of();
     private List<AniMedia> mangaList = List.of();
@@ -150,7 +152,7 @@ public final class MainWindow extends BorderPane {
         Page startPage=Page.HOME;
         try {
             Page configured=Page.valueOf(app.config().get("ui.startTab","HOME").toUpperCase());
-            if(configured==Page.HOME||configured==Page.ANIME||configured==Page.MANGA||configured==Page.MY_LIST) startPage=configured;
+            if(configured==Page.HOME||configured==Page.ANIME||configured==Page.HENTAI||configured==Page.MANGA||configured==Page.MY_LIST) startPage=configured;
         } catch(Exception ignored) {}
         show(startPage);
         loadHome();
@@ -250,8 +252,8 @@ public final class MainWindow extends BorderPane {
         VBox brandBox = new VBox(7, brand, brandKind);
         brandBox.setAlignment(Pos.CENTER);
         brandBox.setOnMouseClicked(e -> show(Page.HOME));
-        homeNav.setText("⌂     Home");animeNav.setText("⌕     Explore");listNav.setText("♡     My List");mangaNav.setText("▤     Manga");
-        for (Button button : List.of(homeNav, animeNav, mangaNav, listNav, settingsNav)) {
+        homeNav.setText("⌂     Home");animeNav.setText("⌕     Explore");hentaiNav.setText("18+   Hentai");listNav.setText("♡     My List");mangaNav.setText("▤     Manga");
+        for (Button button : List.of(homeNav, animeNav, hentaiNav, mangaNav, listNav, settingsNav)) {
             button.setMaxWidth(Double.MAX_VALUE);
             button.setAlignment(Pos.CENTER_LEFT);
         }
@@ -263,7 +265,7 @@ public final class MainWindow extends BorderPane {
         Button curated=nav("◉     Curated");curated.setOnAction(e->showCollection("Curated",popularAnime.stream().filter(m->m.averageScore()!=null&&m.averageScore()>=80).toList()));
         for(Button button:List.of(library,calendar,movies,originals,genres,curated)){button.setMaxWidth(Double.MAX_VALUE);button.setAlignment(Pos.CENTER_LEFT);}
         Region divider=new Region();divider.getStyleClass().add("sidebar-divider");divider.setMinHeight(1);
-        VBox nav = new VBox(4, homeNav, animeNav, library, calendar, listNav, divider, movies, mangaNav, originals, genres, curated);
+        VBox nav = new VBox(4, homeNav, animeNav, library, calendar, listNav, divider, movies, hentaiNav, mangaNav, originals, genres, curated);
         nav.setFillWidth(true);
         settingsNav.setText("⚙     Settings");
         settingsNav.setOnAction(e -> show(Page.SETTINGS));
@@ -296,6 +298,7 @@ public final class MainWindow extends BorderPane {
     private void wireNavigation() {
         homeNav.setOnAction(e -> show(Page.HOME));
         animeNav.setOnAction(e -> show(Page.ANIME));
+        hentaiNav.setOnAction(e -> show(Page.HENTAI));
         mangaNav.setOnAction(e -> show(Page.MANGA));
         listNav.setOnAction(e -> show(Page.MY_LIST));
     }
@@ -340,6 +343,7 @@ public final class MainWindow extends BorderPane {
         Node node = switch (target) {
             case HOME -> homeView();
             case ANIME -> browseView("Anime", "AniList anime discovery", popularAnime, trendingAnime);
+            case HENTAI -> browseView("Hentai", "18+ AniList discovery · ranked source directory in Settings", adultAnime, List.of());
             case MANGA -> browseView("Manga", "AniList manga discovery", trendingManga, List.of());
             case MY_LIST -> listView();
             case SEARCH -> searchPlaceholder();
@@ -350,10 +354,11 @@ public final class MainWindow extends BorderPane {
     }
 
     private void updateNav() {
-        for (Button b : List.of(homeNav, animeNav, mangaNav, listNav, settingsNav)) b.getStyleClass().remove("selected");
+        for (Button b : List.of(homeNav, animeNav, hentaiNav, mangaNav, listNav, settingsNav)) b.getStyleClass().remove("selected");
         switch (page) {
             case HOME -> homeNav.getStyleClass().add("selected");
             case ANIME, SEARCH -> animeNav.getStyleClass().add("selected");
+            case HENTAI -> hentaiNav.getStyleClass().add("selected");
             case MANGA -> mangaNav.getStyleClass().add("selected");
             case MY_LIST -> listNav.getStyleClass().add("selected");
             case SETTINGS -> settingsNav.getStyleClass().add("selected");
@@ -560,7 +565,7 @@ public final class MainWindow extends BorderPane {
     private Node browseView(String titleText, String subtitleText, List<AniMedia> primary, List<AniMedia> secondary) {
         Label title = new Label(titleText); title.getStyleClass().add("browse-title");
         Label nativeLine = new Label("まだ見ぬ物語を"); nativeLine.getStyleClass().add("browse-native");
-        Label subtitle = new Label("Explore stories beyond the visible."); subtitle.getStyleClass().add("browse-subtitle");
+        Label subtitle = new Label(subtitleText); subtitle.getStyleClass().add("browse-subtitle");
         List<AniMedia> merged = new ArrayList<>(primary);
         for (AniMedia m : secondary) if (merged.stream().noneMatch(x -> x.id() == m.id())) merged.add(m);
         TilePane grid = new TilePane(); grid.setHgap(16); grid.setVgap(18); grid.setPrefTileWidth(190); grid.setAlignment(Pos.TOP_LEFT);
@@ -1181,9 +1186,11 @@ public final class MainWindow extends BorderPane {
         HBox timeline=new HBox(12,time,seek);timeline.setAlignment(Pos.CENTER_LEFT);HBox.setHgrow(seek,Priority.ALWAYS);timeline.getStyleClass().add("player-timeline");
         String posterUrl=session.media().bannerImage()==null||session.media().bannerImage().isBlank()?session.media().coverImage():session.media().bannerImage();ImageView thumb=image(posterUrl,145,88);thumb.setPreserveRatio(false);thumb.getStyleClass().add("player-cover");
         Label eyebrow=new Label("A O K U V U E   S E L E C T I O N");eyebrow.getStyleClass().add("section-kicker");Label mediaTitle=new Label(session.media().title());mediaTitle.getStyleClass().add("player-media-title");Label episodeLabel=new Label("Episode "+session.playback().episode().number()+"  ·  "+safe(session.playback().episode().title()));episodeLabel.getStyleClass().add("player-meta");VBox mediaCopy=new VBox(4,eyebrow,mediaTitle,episodeLabel);mediaCopy.setPrefWidth(300);
-        HBox transport=new HBox(8,prev,rewind,play,forward,next);transport.setAlignment(Pos.CENTER);
-        HBox selectors=new HBox(8,new Label("CC"),subtitles,quality,new Label("Speed"),speed,new Label("Vol"),volume,full);selectors.setAlignment(Pos.CENTER_RIGHT);
-        Region lowerSpacer=new Region();HBox.setHgrow(lowerSpacer,Priority.ALWAYS);HBox controlsRow=new HBox(18,thumb,mediaCopy,transport,lowerSpacer,selectors);controlsRow.setAlignment(Pos.CENTER_LEFT);
+        HBox transport=new HBox(8,prev,rewind,play,forward,next);transport.setAlignment(Pos.CENTER);transport.setMaxWidth(Region.USE_PREF_SIZE);
+        HBox selectors=new HBox(8,new Label("CC"),subtitles,quality,new Label("Speed"),speed,new Label("Vol"),volume,full);selectors.setAlignment(Pos.CENTER_RIGHT);selectors.setMaxWidth(Region.USE_PREF_SIZE);
+        HBox mediaIdentity=new HBox(18,thumb,mediaCopy);mediaIdentity.setAlignment(Pos.CENTER_LEFT);mediaIdentity.setMaxWidth(Region.USE_PREF_SIZE);
+        StackPane controlsRow=new StackPane(mediaIdentity,transport,selectors);
+        StackPane.setAlignment(mediaIdentity,Pos.CENTER_LEFT);StackPane.setAlignment(transport,Pos.CENTER);StackPane.setAlignment(selectors,Pos.CENTER_RIGHT);
         VBox bottom=new VBox(9,timeline,controlsRow);bottom.setPadding(new Insets(9,22,14,22));bottom.getStyleClass().add("player-controls");pane.setBottom(bottom);
         content.getChildren().setAll(pane);
         configurePlayerFullScreen(pane,null,bottom,full);
@@ -1415,6 +1422,7 @@ public final class MainWindow extends BorderPane {
         Label subtitle=new Label("Customize your AOKUVUE experience.");subtitle.getStyleClass().add("browse-subtitle");
         Node settingsHeader=brandPageHeader(title,subtitle);
         Slider watchPct=new Slider(0.5,1.0,app.config().getDouble("player.watchPercentage",0.85));watchPct.setShowTickLabels(true);watchPct.setShowTickMarks(true);watchPct.setMajorTickUnit(0.1);
+        CheckBox autoMarkWatched=new CheckBox("Automatically mark episodes as watched");autoMarkWatched.setSelected(app.config().getBoolean("player.autoMarkWatched",true));watchPct.disableProperty().bind(autoMarkWatched.selectedProperty().not());
         CheckBox autoPlay=new CheckBox("Autoplay resolved episodes");autoPlay.setSelected(app.config().getBoolean("player.autoPlay",true));
         ComboBox<Double> defaultSpeed=new ComboBox<>(FXCollections.observableArrayList(0.5,0.75,1.0,1.25,1.5,1.75,2.0));double savedSpeed=app.config().getDouble("player.defaultSpeed",1.0);defaultSpeed.setValue(defaultSpeed.getItems().stream().min(Comparator.comparingDouble(v->Math.abs(v-savedSpeed))).orElse(1.0));
         double savedSubtitleSize=PlayerSettings.sanitizeSubtitleSize(app.config().getDouble("player.subtitleSize",20.0));
@@ -1425,17 +1433,19 @@ public final class MainWindow extends BorderPane {
         Runnable updateSubtitlePreview=()->{double size=Math.rint(subtitleSize.getValue());subtitleSizeValue.setText(String.format("%.0f px",size));subtitlePreview.setStyle("-fx-font-size: "+size+"px;");};
         subtitleSize.valueProperty().addListener((observable,oldValue,newValue)->updateSubtitlePreview.run());updateSubtitlePreview.run();
         VBox subtitleSizeControl=new VBox(9,new HBox(10,subtitleSize,subtitleSizeValue),subtitlePreviewPanel);
-        ComboBox<String> startTab=new ComboBox<>(FXCollections.observableArrayList("HOME","ANIME","MANGA","MY_LIST"));startTab.setValue(app.config().get("ui.startTab","HOME").toUpperCase());
+        ComboBox<String> startTab=new ComboBox<>(FXCollections.observableArrayList("HOME","ANIME","HENTAI","MANGA","MY_LIST"));startTab.setValue(app.config().get("ui.startTab","HOME").toUpperCase());
         Button login=new Button(viewer==null?"Login with AniList":"Reconnect AniList");login.getStyleClass().add("primary-button");login.setOnAction(e->loginAniList());
         Button logout=new Button("Log out");logout.setDisable(viewer==null);logout.getStyleClass().add("secondary-button");logout.setOnAction(e->{app.auth().clearToken();viewer=null;animeList=List.of();mangaList=List.of();applyViewer(null);show(Page.SETTINGS);});
         Label noSources=new Label("EverythingMoe ranks the directory. Aokuvue automatically uses the highest-ranked provider with a working episode adapter, currently Anikoto, and opens selected episodes in the in-app player.");noSources.setWrapText(true);
         VBox sourceCard=settingsCard("EverythingMoe sources",noSources);
         VBox providerDirectoryCard=providerDirectoryCard();
-        VBox playerCard=settingsCard("Player",field("Watch threshold",watchPct),field("Default speed",defaultSpeed),field("Subtitle size",subtitleSizeControl),autoPlay);
+        VBox hentaiDirectoryCard=hentaiDirectoryCard();
+        VBox playerCard=settingsCard("Player",autoMarkWatched,field("Mark episode watched at",watchPct),field("Default speed",defaultSpeed),field("Subtitle size",subtitleSizeControl),autoPlay);
         VBox uiCard=settingsCard("Interface",field("Startup tab",startTab));
         VBox accountCard=settingsCard("AniList",new HBox(8,login,logout),new Label("OAuth client ID "+AniListAuthService.CLIENT_ID+" · browser/Auth Pin login"));
         Button save=new Button("Save settings");save.getStyleClass().add("primary-button");save.setOnAction(e->{
             app.config().set("player.watchPercentage",Double.toString(watchPct.getValue()));
+            app.config().set("player.autoMarkWatched",Boolean.toString(autoMarkWatched.isSelected()));
             app.config().set("player.defaultSpeed",Double.toString(defaultSpeed.getValue()==null?1.0:defaultSpeed.getValue()));
             app.config().set("player.subtitleSize",Double.toString(Math.rint(subtitleSize.getValue())));
             app.config().set("player.autoPlay",Boolean.toString(autoPlay.isSelected()));
@@ -1446,7 +1456,7 @@ public final class MainWindow extends BorderPane {
         VBox themeCard=themePreviewCard();HBox.setHgrow(themeCard,Priority.ALWAYS);uiCard.setPrefWidth(330);HBox appearanceRow=new HBox(14,themeCard,uiCard);
         VBox appearance=new VBox(14,appearanceRow);appearance.setPadding(new Insets(18,0,0,0));
         VBox playback=new VBox(14,playerCard);playback.setPadding(new Insets(18,0,0,0));
-        VBox sources=new VBox(14,sourceCard,providerDirectoryCard);sources.setPadding(new Insets(18,0,0,0));
+        VBox sources=new VBox(14,sourceCard,providerDirectoryCard,hentaiDirectoryCard);sources.setPadding(new Insets(18,0,0,0));
         VBox account=new VBox(14,accountCard);account.setPadding(new Insets(18,0,0,0));
         VBox feedback=new VBox(14,feedbackCard());feedback.setPadding(new Insets(18,0,0,0));
         TabPane tabs=new TabPane();tabs.getStyleClass().add("settings-tabs");tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
@@ -1542,6 +1552,27 @@ public final class MainWindow extends BorderPane {
         return card;
     }
 
+    private VBox hentaiDirectoryCard() {
+        Label summary = new Label("Refreshing adult provider directory…");summary.getStyleClass().add("source-status");summary.setWrapText(true);
+        FlowPane providers = new FlowPane(7,7);providers.setAlignment(Pos.CENTER_LEFT);
+        Button directory = new Button("Open Hentai Streaming directory");directory.getStyleClass().add("secondary-button");directory.setOnAction(e -> openUri(EverythingMoeHentaiDirectory.DIRECTORY_URI));
+        Button refresh = new Button("Refresh adult sources");refresh.getStyleClass().add("secondary-button");
+        Label explanation = new Label("Ranked adult-site directory from EverythingMoe. Entries open as websites and are not registered as native episode resolvers.");explanation.setWrapText(true);
+        VBox card = settingsCard("EverythingMoe Hentai sources",explanation,summary,providers,new HBox(8,directory,refresh));
+        Runnable load = () -> {
+            summary.setText("Refreshing adult provider directory…");refresh.setDisable(true);
+            app.hentaiDirectory().refresh().whenComplete((sites,error)->Platform.runLater(()->{
+                refresh.setDisable(false);List<ProviderSite> resolved = sites == null ? app.hentaiDirectory().fallbackSnapshot() : sites;
+                summary.setText(resolved.size()+" ranked adult sources · browser directory");providers.getChildren().clear();
+                for (ProviderSite site : resolved) {
+                    Button chip = new Button("#"+site.rank()+"  "+site.name()+(site.multiSource()?" · MULT":""));chip.getStyleClass().add("provider-chip");chip.setTooltip(new Tooltip("Open "+site.baseUri()));chip.setOnAction(e -> openUri(site.baseUri()));providers.getChildren().add(chip);
+                }
+                if(error!=null) status.setText("Adult provider refresh used the built-in fallback list.");
+            }));
+        };
+        refresh.setOnAction(e -> load.run());Platform.runLater(load);return card;
+    }
+
     private VBox settingsCard(String title,Node...nodes){Label eyebrow=new Label("AOKUVUE / "+title.toUpperCase());eyebrow.getStyleClass().add("section-kicker");Label h=new Label(title);h.getStyleClass().add("section-title");VBox v=new VBox(11,eyebrow,h);v.getChildren().addAll(nodes);v.getStyleClass().add("settings-card");v.setPadding(new Insets(18));return v;}
     private VBox field(String name,Node control){Label l=new Label(name);l.getStyleClass().add("field-label");if(control instanceof Region r)r.setMaxWidth(Double.MAX_VALUE);return new VBox(5,l,control);}
 
@@ -1572,15 +1603,17 @@ public final class MainWindow extends BorderPane {
         homeLoadError=null;if(page==Page.HOME)show(Page.HOME);status.setText("Loading AniList…");
         var ta=app.anilist().browse(MediaType.ANIME,"TRENDING_DESC",18);
         var pa=app.anilist().browse(MediaType.ANIME,"POPULARITY_DESC",24);
+        var ha=app.anilist().browseAdultAnime("POPULARITY_DESC",36);
         var tm=app.anilist().browse(MediaType.MANGA,"TRENDING_DESC",18);
-        int[] pending={3};
+        int[] pending={4};
         Runnable finished=()->{refreshHomeAfterLoad();if(--pending[0]==0)initialContentReady.complete(null);};
         ta.whenComplete((items,error)->Platform.runLater(()->{if(error==null)trendingAnime=items;else homeLoadError=root(error);finished.run();}));
         pa.whenComplete((items,error)->Platform.runLater(()->{if(error==null)popularAnime=items;else if(homeLoadError==null)homeLoadError=root(error);finished.run();}));
+        ha.whenComplete((items,error)->Platform.runLater(()->{if(error==null)adultAnime=items;else if(homeLoadError==null)homeLoadError=root(error);finished.run();}));
         tm.whenComplete((items,error)->Platform.runLater(()->{if(error==null)trendingManga=items;else if(homeLoadError==null)homeLoadError=root(error);finished.run();}));
     }
 
-    private void refreshHomeAfterLoad(){boolean any=!trendingAnime.isEmpty()||!popularAnime.isEmpty()||!trendingManga.isEmpty();status.setText(any?"AniList content loaded.":"AniList loading failed: "+homeLoadError);System.out.println("[Aokuvue][Home] trending="+trendingAnime.size()+" popular="+popularAnime.size()+" manga="+trendingManga.size()+(homeLoadError==null?"":" lastError="+homeLoadError));if(page==Page.HOME)show(Page.HOME);else if(page==Page.ANIME||page==Page.MANGA)show(page);}
+    private void refreshHomeAfterLoad(){boolean any=!trendingAnime.isEmpty()||!popularAnime.isEmpty()||!adultAnime.isEmpty()||!trendingManga.isEmpty();status.setText(any?"AniList content loaded.":"AniList loading failed: "+homeLoadError);System.out.println("[Aokuvue][Home] trending="+trendingAnime.size()+" popular="+popularAnime.size()+" hentai="+adultAnime.size()+" manga="+trendingManga.size()+(homeLoadError==null?"":" lastError="+homeLoadError));if(page==Page.HOME)show(Page.HOME);else if(page==Page.ANIME||page==Page.HENTAI||page==Page.MANGA)show(page);}
 
     private static Button nav(String text){Button b=new Button(text);b.getStyleClass().add("nav-tab");return b;}
     private static Button icon(String text,String tooltip){Button b=new Button(text);b.getStyleClass().add("icon-button");b.setTooltip(new Tooltip(tooltip));return b;}

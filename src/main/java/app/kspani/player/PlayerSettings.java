@@ -4,6 +4,7 @@ import app.kspani.config.AppConfig;
 
 public record PlayerSettings(
         double watchPercentage,
+        boolean autoMarkWatched,
         boolean autoPlay,
         int seekSeconds,
         double defaultSpeed,
@@ -13,6 +14,7 @@ public record PlayerSettings(
         double pct = Math.max(0.5, Math.min(1.0, config.getDouble("player.watchPercentage", 0.85)));
         return new PlayerSettings(
                 pct,
+                config.getBoolean("player.autoMarkWatched", true),
                 config.getBoolean("player.autoPlay", true),
                 Math.max(5, config.getInt("player.seekSeconds", 10)),
                 Math.max(0.25, Math.min(4.0, config.getDouble("player.defaultSpeed", 1.0))),

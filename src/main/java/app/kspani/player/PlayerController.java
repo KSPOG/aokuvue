@@ -129,7 +129,7 @@ public final class PlayerController implements AutoCloseable {
         if (session == null || duration <= 0 || Double.isNaN(duration)) return;
         long pos = (long) position;
         long dur = (long) duration;
-        boolean threshold = position / duration >= settings.watchPercentage();
+        boolean threshold = settings.autoMarkWatched() && position / duration >= settings.watchPercentage();
         long now = System.currentTimeMillis();
         if (threshold || now - lastSavedAt >= 5_000) {
             progress.save(session.media().id(), session.playback().source().descriptor().id(), session.playback().episode().number(), pos, dur, threshold);
@@ -158,9 +158,15 @@ public final class PlayerController implements AutoCloseable {
 
     public void markWatchedNow() {
         if (session == null) return;
+        progress.markWatched(
+                session.media().id(),
+                session.playback().source().descriptor().id(),
+                session.playback().episode().number()
+        );
         watchedSent = false;
         syncAniList();
         watchedSent = true;
+        status.accept("Episode " + session.playback().episode().number() + " marked watched.");
     }
 
     public MediaPlayer player() { return mediaPlayer; }
