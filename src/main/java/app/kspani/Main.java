@@ -1,10 +1,12 @@
 package app.kspani;
 
 import app.kspani.app.AppContext;
+import app.kspani.app.AppUpdateService;
 import app.kspani.app.DiagnosticLog;
 import app.kspani.ui.CatalogUiEnhancer;
 import app.kspani.ui.MainWindow;
 import app.kspani.ui.SettingsUiEnhancer;
+import app.kspani.ui.UpdateNotification;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.animation.FadeTransition;
@@ -28,6 +30,8 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.util.Duration;
 
+import java.util.concurrent.CompletionException;
+
 public final class Main extends Application {
     private static final long MINIMUM_SPLASH_MILLIS = 1_400;
     private AppContext context;
@@ -49,7 +53,8 @@ public final class Main extends Application {
         MainWindow root=new MainWindow(context);
         SettingsUiEnhancer.install(root);
         CatalogUiEnhancer.install(root, context);
-        Scene scene=new Scene(root,1500,900,Color.web("#0A0A0F"));
+        StackPane sceneRoot=new StackPane(root);
+        Scene scene=new Scene(sceneRoot,1500,900,Color.web("#0A0A0F"));
         var css = Main.class.getResource("/styles/aokuvue.css");
         if (css != null) scene.getStylesheets().add(css.toExternalForm());
         stage.setTitle("AOKUVUE");
@@ -70,22 +75,79 @@ public final class Main extends Application {
                 splash.status().setText(error==null?"Your world is ready":"Opening AOKUVUE…");
                 splash.progress().setProgress(1);
                 PauseTransition settle=new PauseTransition(Duration.millis(220));
-                settle.setOnFinished(done->revealMainWindow(stage,root,splash));
+                settle.setOnFinished(done->revealMainWindow(stage,root,sceneRoot,splash));
                 settle.play();
             });
             minimumDisplay.play();
         }));
     }
 
-    private void revealMainWindow(Stage stage,MainWindow root,SplashHandle splash){
+    private void revealMainWindow(Stage stage,MainWindow root,StackPane sceneRoot,SplashHandle splash){
         Timeline windowFade=new Timeline(
                 new KeyFrame(Duration.ZERO,new KeyValue(stage.opacityProperty(),0)),
                 new KeyFrame(Duration.millis(560),new KeyValue(stage.opacityProperty(),1, Interpolator.EASE_BOTH)));
         FadeTransition splashFade=new FadeTransition(Duration.millis(520),splash.root());
         splashFade.setFromValue(1);splashFade.setToValue(0);
         ParallelTransition transition=new ParallelTransition(windowFade,splashFade);
-        transition.setOnFinished(event->{splash.stage().setAlwaysOnTop(false);splash.stage().close();root.requestFocus();});
+        transition.setOnFinished(event->{
+            splash.stage().setAlwaysOnTop(false);
+            splash.stage().close();
+            root.requestFocus();
+            checkForUpdates(stage,sceneRoot);
+        });
         transition.play();
+    }
+
+    private void checkForUpdates(Stage stage,StackPane sceneRoot) {
+        AppUpdateService updates=new AppUpdateService(context.http().mapper());
+        updates.checkForUpdate().whenComplete((available,error)->{
+            if(error!=null){
+                System.err.println("Aokuvue update check failed: "+rootMessage(error));
+                return;
+            }
+            if(available.isEmpty())return;
+            Platform.runLater(()->showUpdateNotification(stage,sceneRoot,updates,available.get()));
+        });
+    }
+
+    private void showUpdateNotification(Stage stage,StackPane sceneRoot,AppUpdateService updates,AppUpdateService.UpdateInfo info) {
+        final UpdateNotification[] holder=new UpdateNotification[1];
+        Runnable dismiss=()->{
+            UpdateNotification notification=holder[0];
+            if(notification!=null)sceneRoot.getChildren().remove(notification);
+        };
+        Runnable update=()->{
+            UpdateNotification notification=holder[0];
+            if(notification==null)return;
+            notification.setUpdating();
+            updates.downloadAndLaunch(info,updates.detectInstallDirectory()).whenComplete((installer,error)->Platform.runLater(()->{
+                if(error!=null){
+                    notification.setFailure(errorCause(error));
+                    return;
+                }
+                // The updater is now running and waiting for this PID. Closing Aokuvue releases
+                // the native app-image files before the updater swaps in the new build.
+                stage.close();
+                Platform.exit();
+            }));
+        };
+        UpdateNotification notification=new UpdateNotification(info,update,dismiss);
+        holder[0]=notification;
+        StackPane.setAlignment(notification,Pos.TOP_RIGHT);
+        StackPane.setMargin(notification,new Insets(86,26,0,0));
+        sceneRoot.getChildren().add(notification);
+    }
+
+    private static Throwable errorCause(Throwable error) {
+        Throwable current=error;
+        while(current instanceof CompletionException&&current.getCause()!=null)current=current.getCause();
+        if(current.getCause()!=null&&current instanceof IllegalStateException)return current.getCause();
+        return current;
+    }
+
+    private static String rootMessage(Throwable error) {
+        Throwable root=errorCause(error);
+        return root.getMessage()==null?root.getClass().getSimpleName():root.getMessage();
     }
 
     private SplashHandle createSplash(){
