@@ -10,9 +10,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +21,7 @@ public final class FeedbackService {
 
     private static final URI SUGGESTION_WEBHOOK = URI.create("https://discord.com/api/webhooks/1548384783141306388/Y9VmeGRsVoNo9gSo1-4rQrNAV9Mi5TyiEqq488IAgJYQrQhwCh5KU87mKj2UOc27wXC_");
     private static final URI BUG_WEBHOOK = URI.create("https://discord.com/api/webhooks/1548385202458460223/Idn4PTgve35TvcjLeB_YFNeNKdTp3A8b8q5X2FHrepSTXX23_-TsY9ivRq-gxDfaaAyn");
+    public static final int MAX_TITLE_LENGTH = 100;
     private static final int MAX_MESSAGE_LENGTH = 1_700;
     private static final int MAX_LOG_LENGTH = 60_000;
 
@@ -34,18 +32,20 @@ public final class FeedbackService {
         this.mapper = mapper;
     }
 
-    public CompletableFuture<Void> submit(Kind kind, String text) {
+    public CompletableFuture<Void> submit(Kind kind, String title, String text) {
+        String reportTitle = normalizeTitle(title);
         String message = normalize(text);
+        if (reportTitle.isBlank()) return CompletableFuture.failedFuture(new IllegalArgumentException("Enter a title before sending."));
         if (message.isBlank()) return CompletableFuture.failedFuture(new IllegalArgumentException("Enter a message before sending."));
         try {
-            return kind == Kind.BUG_REPORT ? sendBug(message) : sendSuggestion(message);
+            return kind == Kind.BUG_REPORT ? sendBug(reportTitle, message) : sendSuggestion(reportTitle, message);
         } catch (IOException error) {
             return CompletableFuture.failedFuture(error);
         }
     }
 
-    private CompletableFuture<Void> sendSuggestion(String message) throws IOException {
-        byte[] json = mapper.writeValueAsBytes(payload("**AOKUVUE Suggestion**\n" + message, threadName(Kind.SUGGESTION), false));
+    private CompletableFuture<Void> sendSuggestion(String title, String message) throws IOException {
+        byte[] json = mapper.writeValueAsBytes(payload(content(Kind.SUGGESTION, title, message), threadName(title), false));
         HttpRequest request = HttpRequest.newBuilder(SUGGESTION_WEBHOOK)
                 .timeout(Duration.ofSeconds(25)).header("Content-Type", "application/json")
                 .header("User-Agent", "AOKUVUE-Feedback/1.0")
@@ -53,9 +53,9 @@ public final class FeedbackService {
         return send(request);
     }
 
-    private CompletableFuture<Void> sendBug(String message) throws IOException {
+    private CompletableFuture<Void> sendBug(String title, String message) throws IOException {
         String boundary = "AokuvueBoundary" + UUID.randomUUID().toString().replace("-", "");
-        byte[] payload = mapper.writeValueAsBytes(payload("**AOKUVUE Bug Report**\n" + message, threadName(Kind.BUG_REPORT), true));
+        byte[] payload = mapper.writeValueAsBytes(payload(content(Kind.BUG_REPORT, title, message), threadName(title), true));
         byte[] logs = DiagnosticLog.recentText(MAX_LOG_LENGTH).getBytes(StandardCharsets.UTF_8);
         ByteArrayOutputStream body = new ByteArrayOutputStream();
         part(body, boundary, "payload_json", null, "application/json", payload);
@@ -84,9 +84,13 @@ public final class FeedbackService {
         return value;
     }
 
-    private static String threadName(Kind kind) {
-        String type=kind==Kind.BUG_REPORT?"Bug Report":"Suggestion";
-        return "AOKUVUE " + type + " - " + DateTimeFormatter.ofPattern("uuuu-MM-dd HH-mm 'UTC'").format(ZonedDateTime.now(ZoneOffset.UTC));
+    static String threadName(String title) {
+        return normalizeTitle(title);
+    }
+
+    static String content(Kind kind, String title, String message) {
+        String type = kind == Kind.BUG_REPORT ? "Bug Report" : "Suggestion";
+        return "**AOKUVUE " + type + "**\n**Title:** " + escapeMarkdown(normalizeTitle(title)) + "\n\n" + normalize(message);
     }
 
     private static String discordError(HttpResponse<String> response) {
@@ -98,6 +102,19 @@ public final class FeedbackService {
     private static String normalize(String text) {
         String value = text == null ? "" : text.strip();
         return value.length() <= MAX_MESSAGE_LENGTH ? value : value.substring(0, MAX_MESSAGE_LENGTH);
+    }
+
+    static String normalizeTitle(String title) {
+        String value = title == null ? "" : title.strip().replaceAll("\\s+", " ");
+        return value.length() <= MAX_TITLE_LENGTH ? value : value.substring(0, MAX_TITLE_LENGTH).stripTrailing();
+    }
+
+    private static String escapeMarkdown(String value) {
+        return value.replace("\\", "\\\\")
+                .replace("*", "\\*")
+                .replace("_", "\\_")
+                .replace("~", "\\~")
+                .replace("`", "\\`");
     }
 
     private static void part(ByteArrayOutputStream body, String boundary, String name, String filename, String contentType, byte[] data) throws IOException {
