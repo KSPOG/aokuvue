@@ -65,20 +65,20 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AokuvueInstaller-1.1.0
+          name: AokuvueInstaller-1.1.1
           path: |
             dist/AokuvueInstaller.exe
             dist/AokuvueInstaller.exe.sha256
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish Aokuvue Installer v1.1.0
+      - name: Publish Aokuvue Installer v1.1.1
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'installer-v1.1.0'
+          $tag = 'installer-v1.1.1'
           gh release view $tag --repo '${{ github.repository }}' *> $null
           if ($LASTEXITCODE -eq 0) {
             throw "Release $tag already exists. Bump INSTALLER_VERSION and the workflow release version before publishing another installer."
@@ -88,9 +88,9 @@ jobs:
             'dist\AokuvueInstaller.exe.sha256' `
             --repo '${{ github.repository }}' `
             --target '${{ github.sha }}' `
-            --title 'Aokuvue Installer v1.1.0' `
+            --title 'Aokuvue Installer v1.1.1' `
             --notes @"
-          # Aokuvue Installer v1.1.0
+          # Aokuvue Installer v1.1.1
 
           - Uses the canonical **Aokuvue** product name throughout the installer.
           - Remembers the last selected installation folder and reuses it for future installs and updates.
@@ -98,6 +98,7 @@ jobs:
           - Downloads the exact current `main` commit, runs tests, packages Aokuvue, and replaces the selected installation only after the running app has closed.
           - Downloads Eclipse Temurin JDK 21 from Adoptium and verifies its published SHA-256 before use.
           - Keeps the Gradle and JDK build-tool caches outside the temporary source checkout.
+          - Explicitly isolates Gradle user-home and project caches to avoid transient-file and Windows path-length failures.
 
           The installer executable is currently unsigned, so Windows SmartScreen may warn on first launch.
           "@

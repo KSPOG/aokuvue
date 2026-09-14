@@ -27,7 +27,7 @@ from PIL import Image, ImageTk
 
 
 APP_NAME = "Aokuvue"
-INSTALLER_VERSION = "1.1.0"
+INSTALLER_VERSION = "1.1.1"
 REPOSITORY = "KSPOG/aokuvue"
 GITHUB_API = f"https://api.github.com/repos/{REPOSITORY}"
 ADOPTIUM_API = (
@@ -77,6 +77,10 @@ def installer_cache_dir() -> Path:
 
 def gradle_cache_dir() -> Path:
     return local_app_data() / APP_NAME / "build-tools" / "gradle"
+
+
+def gradle_user_home_dir() -> Path:
+    return local_app_data() / APP_NAME / "gradle-home"
 
 
 def resource_path(name: str) -> Path:
@@ -342,12 +346,18 @@ def package_application(project: Path, jdk: Path, work_dir: Path, version: str, 
     env["JAVA_HOME"] = str(jdk)
     env["PATH"] = str(jdk / "bin") + os.pathsep + env.get("PATH", "")
     env["AOKUVUE_GRADLE_CACHE"] = str(gradle_cache_dir())
+    gradle_home = gradle_user_home_dir()
+    gradle_home.mkdir(parents=True, exist_ok=True)
+    env["GRADLE_USER_HOME"] = str(gradle_home)
+    project_cache = work_dir / "gradle-project-cache"
+    project_cache.mkdir(parents=True, exist_ok=True)
 
     gradle = project / "gradlew.bat"
     log("Building and testing Aokuvue…")
     set_progress(52)
     run_process(
-        [str(gradle), "clean", "test", "installDist", "--no-daemon", "--stacktrace"],
+        [str(gradle), "clean", "test", "installDist", "--no-daemon", "--stacktrace",
+         "--project-cache-dir", str(project_cache)],
         project,
         env,
         log,
@@ -850,7 +860,7 @@ class InstallerWindow:
 
 def run_self_test() -> int:
     assert APP_NAME == "Aokuvue"
-    assert INSTALLER_VERSION == "1.1.0"
+    assert INSTALLER_VERSION == "1.1.1"
     assert parse_build_version("group='x'\nversion = '1.5.18'\n") == "1.5.18"
     assert parse_version_text("v1.10.0") > parse_version_text("1.9.9")
 
@@ -858,6 +868,7 @@ def run_self_test() -> int:
     explicit = preferred_install_dir(r"D:\Custom\Aokuvue", {"lastInstallPath": r"C:\Ignored"})
     assert str(remembered).lower().endswith(r"apps\aokuvue")
     assert str(explicit).lower().endswith(r"custom\aokuvue")
+    assert gradle_user_home_dir().name == "gradle-home"
     print(f"{APP_NAME} Installer & Updater v{INSTALLER_VERSION} self-test passed")
     return 0
 
