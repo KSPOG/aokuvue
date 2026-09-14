@@ -8,3 +8,6 @@ dist/
 *.iml
 *.log
 out/
+__pycache__/
+*.pyc
+*.spec
