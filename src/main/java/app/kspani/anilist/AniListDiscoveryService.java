@@ -103,36 +103,53 @@ public final class AniListDiscoveryService {
 
     public CompletableFuture<MediaPage> browse(CatalogFilter filter, int page) {
         int requestedPage = Math.max(1, page);
-        String normalAnimeExclusion = filter.type() == MediaType.ANIME && !filter.hentai()
-                ? ", genre_not_in: [\"Hentai\"]"
-                : "";
-
-        String query = """
-                query($page: Int!, $perPage: Int!, $type: MediaType!, $sort: [MediaSort],
-                      $isAdult: Boolean, $format: MediaFormat, $source: MediaSource,
-                      $genre: String, $minimumScore: Int, $year: String) {
-                  Page(page: $page, perPage: $perPage) {
-                    pageInfo { total currentPage hasNextPage }
-                    media(type: $type, sort: $sort, isAdult: $isAdult, format: $format,
-                          source: $source, genre: $genre, averageScore_greater: $minimumScore,
-                          startDate_like: $year%s) {
-                      %s
-                    }
-                  }
-                }
-                """.formatted(normalAnimeExclusion, mediaFields());
+        List<String> declarations = new ArrayList<>(List.of(
+                "$page: Int!", "$perPage: Int!", "$type: MediaType!", "$sort: [MediaSort]"
+        ));
+        List<String> arguments = new ArrayList<>(List.of(
+                "type: $type", "sort: $sort"
+        ));
 
         LinkedHashMap<String, Object> vars = new LinkedHashMap<>();
         vars.put("page", requestedPage);
         vars.put("perPage", PAGE_SIZE);
         vars.put("type", filter.type().name());
         vars.put("sort", List.of(filter.sort()));
-        vars.put("isAdult", filter.hentai() ? Boolean.TRUE : (includeAdult ? null : Boolean.FALSE));
-        vars.put("format", filter.format());
-        vars.put("source", filter.source());
-        vars.put("genre", filter.hentai() ? "Hentai" : filter.genre());
-        vars.put("minimumScore", filter.minimumScore());
-        vars.put("year", filter.year() == null ? null : filter.year() + "%");
+
+        // AniList rejects null values for comparison operators such as *_greater and *_like.
+        // Build only the operators that are active instead of binding a collection of nulls.
+        if (filter.type() == MediaType.ANIME && !filter.hentai()) {
+            arguments.add("genre_not_in: [\"Hentai\"]");
+        }
+        if (!includeAdult && !filter.hentai()) {
+            addArgument(declarations, arguments, vars, "$isAdult: Boolean", "isAdult: $isAdult", "isAdult", false);
+        }
+        if (filter.format() != null) {
+            addArgument(declarations, arguments, vars, "$format: MediaFormat", "format: $format", "format", filter.format());
+        }
+        if (filter.source() != null) {
+            addArgument(declarations, arguments, vars, "$source: MediaSource", "source: $source", "source", filter.source());
+        }
+        String selectedGenre = filter.hentai() ? "Hentai" : filter.genre();
+        if (selectedGenre != null) {
+            addArgument(declarations, arguments, vars, "$genre: String", "genre: $genre", "genre", selectedGenre);
+        }
+        if (filter.minimumScore() != null) {
+            addArgument(declarations, arguments, vars, "$minimumScore: Int", "averageScore_greater: $minimumScore",
+                    "minimumScore", filter.minimumScore());
+        }
+        if (filter.year() != null) {
+            addArgument(declarations, arguments, vars, "$year: String", "startDate_like: $year", "year", filter.year() + "%");
+        }
+
+        String query = "query(" + String.join(", ", declarations) + ") {\n"
+                + "  Page(page: $page, perPage: $perPage) {\n"
+                + "    pageInfo { total currentPage hasNextPage }\n"
+                + "    media(" + String.join(", ", arguments) + ") {\n"
+                + mediaFields() + "\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
 
         return client.execute(query, vars).thenApply(root -> {
             JsonNode pageNode = root.path("data").path("Page");
@@ -145,6 +162,20 @@ public final class AniListDiscoveryService {
                     info.path("hasNextPage").asBoolean(false)
             );
         });
+    }
+
+    private static void addArgument(
+            List<String> declarations,
+            List<String> arguments,
+            Map<String, Object> variables,
+            String declaration,
+            String argument,
+            String variable,
+            Object value
+    ) {
+        declarations.add(declaration);
+        arguments.add(argument);
+        variables.put(variable, value);
     }
 
     public CompletableFuture<AiringPage> airing(long fromEpochSeconds, long toEpochSeconds, int page) {

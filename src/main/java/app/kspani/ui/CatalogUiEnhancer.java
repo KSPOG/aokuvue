@@ -33,6 +33,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.TilePane;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.Rectangle;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -271,7 +272,14 @@ public final class CatalogUiEnhancer {
         sort.setOnAction(event -> pager.setSort(sortValue(sort.getValue())));
         loadMore.setOnAction(event -> pager.loadNext());
 
-        VBox body = new VBox(0, header, filterBar, grid, paging);
+        VBox body = new VBox();
+        body.getChildren().add(header);
+        // Explore is an editorial discovery surface, and genre results already have a fixed
+        // context. Keep browse controls on the catalog pages where they are meaningful.
+        boolean showBrowseControls = !"Explore".equals(title)
+                && (baseFilter.genre() == null || baseFilter.hentai());
+        if (showBrowseControls) body.getChildren().add(filterBar);
+        body.getChildren().addAll(grid, paging);
         body.setId(DISCOVERY_VIEW_ID);
         body.getStyleClass().add("page-body");
         VBox.setMargin(grid, new Insets(18, AokuvueTheme.PAGE_GUTTER, 12, AokuvueTheme.PAGE_GUTTER));
@@ -412,8 +420,8 @@ public final class CatalogUiEnhancer {
         TilePane cards = new TilePane();
         cards.setHgap(16);
         cards.setVgap(16);
-        cards.setPrefTileWidth(220);
-        cards.setPrefTileHeight(120);
+        cards.setPrefTileWidth(286);
+        cards.setPrefTileHeight(164);
         cards.setAlignment(Pos.TOP_LEFT);
         ProgressIndicator loading = new ProgressIndicator();
         VBox body = new VBox(18, header, loading, cards);
@@ -423,7 +431,11 @@ public final class CatalogUiEnhancer {
         VBox.setMargin(cards, new Insets(0, AokuvueTheme.PAGE_GUTTER, 40, AokuvueTheme.PAGE_GUTTER));
         replaceContent(scroll(body));
 
-        discovery.genres().whenComplete((genres, error) -> Platform.runLater(() -> {
+        discovery.genres().thenCombine(
+                discovery.browse(CatalogFilter.anime(), 1)
+                        .exceptionally(error -> new AniListDiscoveryService.MediaPage(List.of(), 1, 0, false)),
+                (genres, featured) -> Map.entry(genres, featured.items())
+        ).whenComplete((result, error) -> Platform.runLater(() -> {
             loading.setVisible(false);
             loading.setManaged(false);
             if (error != null) {
@@ -431,27 +443,55 @@ public final class CatalogUiEnhancer {
                 return;
             }
             cards.getChildren().clear();
-            genres.forEach(genre -> cards.getChildren().add(genreCard(genre, activeButton)));
+            List<String> genres = result.getKey();
+            List<AniMedia> featured = result.getValue();
+            genres.forEach(genre -> {
+                AniMedia artwork = featured.stream()
+                        .filter(media -> media.genres().stream().anyMatch(value -> value.equalsIgnoreCase(genre)))
+                        .findFirst()
+                        .orElse(null);
+                cards.getChildren().add(genreCard(genre, artwork, activeButton));
+            });
         }));
     }
 
-    private Node genreCard(String genre, Button genresButton) {
-        Label kicker = new Label("A N I L I S T   G E N R E");
-        kicker.getStyleClass().add("category-caption");
+    private Node genreCard(String genre, AniMedia artwork, Button genresButton) {
+        ImageView art = new ImageView();
+        art.setFitWidth(286);
+        art.setFitHeight(164);
+        art.setPreserveRatio(false);
+        art.setSmooth(true);
+        Rectangle artClip = new Rectangle(286, 164);
+        artClip.setArcWidth(18);
+        artClip.setArcHeight(18);
+        art.setClip(artClip);
+        String artUrl = artwork == null ? null : artwork.bannerImage();
+        if ((artUrl == null || artUrl.isBlank()) && artwork != null) artUrl = artwork.coverImage();
+        if (artUrl == null || artUrl.isBlank()) {
+            var fallback = CatalogUiEnhancer.class.getResource("/images/aokuvue-moonlight.png");
+            if (fallback != null) artUrl = fallback.toExternalForm();
+        }
+        if (artUrl != null) art.setImage(new Image(artUrl, 286, 164, false, true, true));
+
+        Label kicker = new Label("A O K U V U E   C O L L E C T I O N");
+        kicker.getStyleClass().add("genre-card-kicker");
         Label title = new Label(genre);
-        title.getStyleClass().add("category-title");
-        Label caption = new Label("Browse all " + genre + " titles  →");
-        caption.getStyleClass().add("poster-meta");
+        title.getStyleClass().add("genre-card-title");
+        Label caption = new Label("Explore " + genre.toLowerCase(Locale.ROOT) + " stories  →");
+        caption.getStyleClass().add("genre-card-caption");
         caption.setWrapText(true);
-        VBox copy = new VBox(7, kicker, title, caption);
-        copy.setPadding(new Insets(18));
-        copy.setAlignment(Pos.CENTER_LEFT);
+        VBox copy = new VBox(5, kicker, title, caption);
+        copy.setPadding(new Insets(16));
+        copy.setAlignment(Pos.BOTTOM_LEFT);
         Region shade = new Region();
-        shade.getStyleClass().add("category-shade");
+        shade.getStyleClass().add("genre-card-shade");
         shade.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
-        StackPane card = new StackPane(shade, copy);
-        card.setPrefSize(220, 120);
-        card.getStyleClass().add("category-tile");
+        StackPane card = new StackPane(art, shade, copy);
+        card.setPrefSize(286, 164);
+        card.setMinSize(286, 164);
+        card.setMaxSize(286, 164);
+        card.getStyleClass().add("genre-card");
+        StackPane.setAlignment(copy, Pos.BOTTOM_LEFT);
         card.setOnMouseClicked(event -> showPagedCatalog(
                 genre,
                 genre + " anime · AniList genre catalog",
