@@ -302,7 +302,53 @@ def source_archive_urls(commit: str) -> list[str]:
     ]
 
 
+def download_source_with_git(commit: str, work_dir: Path, log) -> Path:
+    git = shutil.which("git.exe") or shutil.which("git")
+    if not git:
+        raise RuntimeError("Git is not installed or is unavailable on PATH")
+
+    source_root = work_dir / "source"
+    project = source_root / f"aokuvue-{commit}"
+    source_root.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(project, ignore_errors=True)
+    project.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    repository_url = f"https://github.com/{REPOSITORY}.git"
+    try:
+        run_process([git, "init", "--quiet"], project, env, log)
+        run_process([git, "remote", "add", "origin", repository_url], project, env, log)
+        run_process(
+            [
+                git,
+                "-c", "http.version=HTTP/1.1",
+                "fetch",
+                "--depth", "1",
+                "--no-tags",
+                "origin",
+                commit,
+            ],
+            project,
+            env,
+            log,
+        )
+        run_process([git, "checkout", "--quiet", "--detach", "FETCH_HEAD"], project, env, log)
+        if not (project / "build.gradle").is_file():
+            raise RuntimeError("Git checkout completed but build.gradle was not found")
+        return project
+    except Exception:
+        shutil.rmtree(project, ignore_errors=True)
+        raise
+
+
 def download_source(commit: str, work_dir: Path, log, set_progress) -> Path:
+    log(f"Fetching Aokuvue source at {commit[:12]} with Git…")
+    try:
+        project = download_source_with_git(commit, work_dir, log)
+        set_progress(32)
+        return project
+    except Exception as git_error:
+        log(f"Git source fetch failed ({git_error}); trying archive downloads…")
+
     archive = work_dir / f"aokuvue-{commit}.zip"
     log(f"Downloading Aokuvue source at {commit[:12]}…")
 
