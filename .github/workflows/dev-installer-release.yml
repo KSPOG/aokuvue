@@ -47,7 +47,12 @@ jobs:
 
       - name: Self-test dev installer
         shell: pwsh
-        run: python installer\aokuvue_dev_installer.py --self-test
+        run: |
+          python installer\aokuvue_dev_installer.py --self-test
+          $trackedCache = @(git ls-files -- '.gradle-user-home/**')
+          if ($trackedCache.Count -gt 0) {
+            throw ".gradle-user-home contains $($trackedCache.Count) tracked generated files. These make the Windows source archive unsafe to extract."
+          }
 
       - name: Build single-file dev installer
         shell: pwsh
