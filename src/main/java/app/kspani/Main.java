@@ -2,6 +2,7 @@ package app.kspani;
 
 import app.kspani.app.AppContext;
 import app.kspani.app.DiagnosticLog;
+import app.kspani.ui.CatalogUiEnhancer;
 import app.kspani.ui.MainWindow;
 import app.kspani.ui.SettingsUiEnhancer;
 import javafx.application.Application;
@@ -47,6 +48,7 @@ public final class Main extends Application {
         context=AppContext.create();
         MainWindow root=new MainWindow(context);
         SettingsUiEnhancer.install(root);
+        CatalogUiEnhancer.install(root, context);
         Scene scene=new Scene(root,1500,900,Color.web("#0A0A0F"));
         var css = Main.class.getResource("/styles/aokuvue.css");
         if (css != null) scene.getStylesheets().add(css.toExternalForm());
