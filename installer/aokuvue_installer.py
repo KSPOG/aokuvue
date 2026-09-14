@@ -87,6 +87,59 @@ def gradle_user_home_dir() -> Path:
     return local_app_data() / APP_NAME / "gradle-home"
 
 
+def cleanup_temporary_directory(path: Path, log, attempts: int = 6) -> bool:
+    """Remove disposable build files without turning a completed install into a failure.
+
+    Windows can briefly retain handles to Gradle artifacts after the build process exits.
+    Retry those transient failures, then leave the hidden directory for later OS/user
+    cleanup rather than reporting that the already-installed application failed.
+    """
+    delay = 0.25
+    for attempt in range(max(1, attempts)):
+        try:
+            shutil.rmtree(path)
+            return True
+        except FileNotFoundError:
+            return True
+        except OSError as error:
+            if attempt + 1 >= attempts:
+                log(f"Temporary build cleanup deferred because Windows still has a file open: {path} ({error})")
+                return False
+            time.sleep(delay)
+            delay = min(delay * 2, 2.0)
+    return False
+
+
+def cleanup_stale_work_directories(parent: Path, log) -> None:
+    """Remove abandoned installer work trees while preserving any active run."""
+    prefix = f".{APP_NAME.replace(' ', '')}Installer-"
+    try:
+        candidates = list(parent.glob(f"{prefix}*"))
+    except OSError:
+        return
+    now = time.time()
+    for candidate in candidates:
+        if not candidate.is_dir():
+            continue
+        owner_pid: int | None = None
+        try:
+            owner_pid = int((candidate / ".installer-owner-pid").read_text(encoding="ascii").strip())
+        except (OSError, ValueError):
+            pass
+        if owner_pid is not None and process_running(owner_pid):
+            continue
+        try:
+            age_seconds = max(0.0, now - candidate.stat().st_mtime)
+        except OSError:
+            continue
+        # Old installer versions did not write an ownership marker. Only remove
+        # those unowned directories after a day to avoid touching a concurrent run.
+        if owner_pid is None and age_seconds < 86_400:
+            continue
+        if cleanup_temporary_directory(candidate, log, attempts=2):
+            log(f"Removed stale installer work directory: {candidate.name}")
+
+
 def reusable_gradle_distribution_cache(work_dir: Path) -> Path:
     local = local_app_data()
     candidates = [
@@ -634,7 +687,10 @@ def package_application(project: Path, jdk: Path, work_dir: Path, version: str, 
     distribution_cache = reusable_gradle_distribution_cache(work_dir)
     env["AOKUVUE_GRADLE_CACHE"] = str(distribution_cache)
     log(f"Using Gradle distribution cache: {distribution_cache}")
-    gradle_home = work_dir / "gradle-user-home"
+    # Keep Gradle's dependency cache outside the disposable build tree. Besides
+    # making subsequent updates faster, this prevents transient Windows JAR
+    # handles from blocking removal of the installer's temporary directory.
+    gradle_home = gradle_user_home_dir()
     gradle_home.mkdir(parents=True, exist_ok=True)
     env["GRADLE_USER_HOME"] = str(gradle_home)
     project_cache = work_dir / "gradle-project-cache"
@@ -1051,37 +1107,51 @@ class InstallerWindow:
         thread.start()
 
     def _install_worker(self, destination: Path):
+        work_dir: Path | None = None
+        version: str | None = None
+        failure: Exception | None = None
         try:
             # Stage on the destination volume. This avoids filling the system temp
             # drive and keeps the final directory swap on one filesystem.
             destination.parent.mkdir(parents=True, exist_ok=True)
-            with tempfile.TemporaryDirectory(
+            cleanup_stale_work_directories(destination.parent, self._log_threadsafe)
+            work_dir = Path(tempfile.mkdtemp(
                 prefix=f".{APP_NAME.replace(' ', '')}Installer-",
                 dir=destination.parent,
-            ) as temporary:
-                work_dir = Path(temporary)
-                self._status(f"Checking the latest {APP_NAME} version…")
-                commit = latest_source_commit()
-                version = latest_app_version(commit)
-                self._log_threadsafe(f"Latest {APP_NAME}: {version} ({commit[:12]})")
-                self._progress(5)
+            ))
+            try:
+                (work_dir / ".installer-owner-pid").write_text(str(os.getpid()), encoding="ascii")
+            except OSError as marker_error:
+                self._log_threadsafe(f"Could not record temporary-directory ownership: {marker_error}")
+            self._status(f"Checking the latest {APP_NAME} version…")
+            commit = latest_source_commit()
+            version = latest_app_version(commit)
+            self._log_threadsafe(f"Latest {APP_NAME}: {version} ({commit[:12]})")
+            self._progress(5)
 
-                project = download_source(commit, work_dir, self._log_threadsafe, self._progress)
-                jdk = ensure_jdk(self._log_threadsafe, self._progress)
-                image = package_application(project, jdk, work_dir, version, self._log_threadsafe, self._progress)
+            project = download_source(commit, work_dir, self._log_threadsafe, self._progress)
+            jdk = ensure_jdk(self._log_threadsafe, self._progress)
+            image = package_application(project, jdk, work_dir, version, self._log_threadsafe, self._progress)
 
-                if self.args.wait_pid:
-                    self._status(f"Waiting for {APP_NAME} to close before updating…")
-                    wait_for_pid(int(self.args.wait_pid), self._log_threadsafe)
-                else:
-                    stop_running_aokuvue(self._log_threadsafe)
+            if self.args.wait_pid:
+                self._status(f"Waiting for {APP_NAME} to close before updating…")
+                wait_for_pid(int(self.args.wait_pid), self._log_threadsafe)
+            else:
+                stop_running_aokuvue(self._log_threadsafe)
 
-                self._status(f"Installing {APP_NAME} {version}…")
-                install_app_image(image, destination, self._log_threadsafe, self._progress)
-                remember_install_dir(destination)
-                self.events.put(("complete", version))
+            self._status(f"Installing {APP_NAME} {version}…")
+            install_app_image(image, destination, self._log_threadsafe, self._progress)
+            remember_install_dir(destination)
         except Exception as error:
-            self.events.put(("failed", error))
+            failure = error
+        finally:
+            if work_dir is not None:
+                cleanup_temporary_directory(work_dir, self._log_threadsafe)
+
+        if failure is not None:
+            self.events.put(("failed", failure))
+        elif version is not None:
+            self.events.put(("complete", version))
 
     def launch(self):
         try:
@@ -1172,6 +1242,14 @@ def run_self_test() -> int:
     assert str(remembered).lower().endswith(r"apps\aokuvue")
     assert str(explicit).lower().endswith(r"custom\aokuvue")
     assert gradle_user_home_dir().name == "gradle-home"
+    original_rmtree = shutil.rmtree
+    cleanup_calls: list[Path] = []
+    try:
+        shutil.rmtree = lambda path: cleanup_calls.append(Path(path))
+        assert cleanup_temporary_directory(Path("cleanup-probe"), lambda _message: None, attempts=1)
+    finally:
+        shutil.rmtree = original_rmtree
+    assert cleanup_calls == [Path("cleanup-probe")]
     print(f"{APP_NAME} Installer & Updater v{INSTALLER_VERSION} ({SOURCE_BRANCH}) self-test passed")
     return 0
 
