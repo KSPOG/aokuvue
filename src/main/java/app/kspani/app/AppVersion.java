@@ -2,7 +2,7 @@ package app.kspani.app;
 
 /** Resolves the version of the currently running Aokuvue build. */
 public final class AppVersion {
-    private static final String DEVELOPMENT_FALLBACK = "1.5.24";
+    private static final String DEVELOPMENT_FALLBACK = "1.5.25";
     private static final String RELEASE_CHANNEL = "Beta";
     private static final String CHANNEL_VERSION = "0.0.3";
 

@@ -183,8 +183,7 @@ public final class CatalogUiEnhancer {
      * fixed-size browse view. Replace those views with the paged AniList version as soon as they appear.
      */
     private void upgradeLegacyCatalog(Node view) {
-        String id = view.getId();
-        if (DISCOVERY_VIEW_ID.equals(id) || CALENDAR_VIEW_ID.equals(id) || GENRES_VIEW_ID.equals(id)) return;
+        if (isEnhancedCatalogView(view)) return;
         Label heading = findLabelByStyle(view, "browse-title");
         if (heading == null) return;
         String title = heading.getText() == null ? "" : heading.getText().trim();
@@ -287,6 +286,7 @@ public final class CatalogUiEnhancer {
         VBox.setMargin(grid, new Insets(18, AokuvueTheme.PAGE_GUTTER, 12, AokuvueTheme.PAGE_GUTTER));
         VBox.setMargin(paging, new Insets(0, AokuvueTheme.PAGE_GUTTER, 40, AokuvueTheme.PAGE_GUTTER));
         ScrollPane scroll = scroll(body);
+        scroll.setId(DISCOVERY_VIEW_ID);
         scroll.addEventFilter(ScrollEvent.SCROLL, event -> {
             if (event.getDeltaY() >= 0) return;
             Platform.runLater(() -> {
@@ -1128,5 +1128,11 @@ public final class CatalogUiEnhancer {
             Node found = findById(tab.getContent(), id); if (found != null) return found;
         }
         return null;
+    }
+
+    static boolean isEnhancedCatalogView(Node view) {
+        return view != null && (findById(view, DISCOVERY_VIEW_ID) != null
+                || findById(view, CALENDAR_VIEW_ID) != null
+                || findById(view, GENRES_VIEW_ID) != null);
     }
 }
