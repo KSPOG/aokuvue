@@ -1503,13 +1503,19 @@ public final class MainWindow extends BorderPane {
     private VBox feedbackCard(){
         ComboBox<String> kind=new ComboBox<>(FXCollections.observableArrayList("Suggestion","Bug Report"));
         kind.setValue("Suggestion");kind.setMaxWidth(260);
+        TextField title=new TextField();title.setPromptText("Give your suggestion a short title");title.setMaxWidth(Double.MAX_VALUE);
+        Label titleCounter=new Label("0 / "+FeedbackService.MAX_TITLE_LENGTH);titleCounter.getStyleClass().add("source-status");
         TextArea message=new TextArea();message.setWrapText(true);message.setPrefRowCount(9);message.setPromptText("Describe your suggestion…");
         Label counter=new Label("0 / 1700");counter.getStyleClass().add("source-status");
-        Label privacy=new Label("Suggestions send only this message. Bug reports also attach a redacted excerpt of recent AOKUVUE runtime logs and basic OS/Java version information. Account tokens, URLs, cookies, and webhook values are excluded.");
+        Label privacy=new Label("Suggestions send only the title and message. Bug reports also attach a redacted excerpt of recent AOKUVUE runtime logs and basic OS/Java version information. Account tokens, URLs, cookies, and webhook values are excluded.");
         privacy.setWrapText(true);privacy.getStyleClass().add("source-status");
         Label result=new Label();result.setWrapText(true);result.getStyleClass().add("source-status");
         ProgressIndicator sending=new ProgressIndicator();sending.setMaxSize(22,22);sending.setVisible(false);sending.setManaged(false);
         Button submit=new Button("Send suggestion");submit.getStyleClass().add("primary-button");
+        title.textProperty().addListener((observable,oldValue,newValue)->{
+            if(newValue.length()>FeedbackService.MAX_TITLE_LENGTH){title.setText(oldValue);return;}
+            titleCounter.setText(newValue.length()+" / "+FeedbackService.MAX_TITLE_LENGTH);
+        });
         message.textProperty().addListener((observable,oldValue,newValue)->{
             if(newValue.length()>1700){message.setText(oldValue);return;}
             counter.setText(newValue.length()+" / 1700");
@@ -1517,22 +1523,25 @@ public final class MainWindow extends BorderPane {
         kind.valueProperty().addListener((observable,oldValue,newValue)->{
             boolean bug="Bug Report".equals(newValue);
             submit.setText(bug?"Send bug report":"Send suggestion");
+            title.setPromptText(bug?"Give the bug report a short title":"Give your suggestion a short title");
             message.setPromptText(bug?"Describe what happened, what you expected, and how to reproduce it…":"Describe your suggestion…");
             result.setText("");
         });
         submit.setOnAction(event->{
+            String reportTitle=title.getText()==null?"":title.getText().strip();
             String text=message.getText()==null?"":message.getText().strip();
+            if(reportTitle.isBlank()){result.setText("Enter a title before sending.");title.requestFocus();return;}
             if(text.isBlank()){result.setText("Enter a message before sending.");message.requestFocus();return;}
             FeedbackService.Kind selected="Bug Report".equals(kind.getValue())?FeedbackService.Kind.BUG_REPORT:FeedbackService.Kind.SUGGESTION;
-            submit.setDisable(true);kind.setDisable(true);message.setDisable(true);sending.setManaged(true);sending.setVisible(true);result.setText("Sending securely to the AOKUVUE Discord webhook…");
-            app.feedback().submit(selected,text).whenComplete((ignored,error)->Platform.runLater(()->{
-                submit.setDisable(false);kind.setDisable(false);message.setDisable(false);sending.setManaged(false);sending.setVisible(false);
-                if(error==null){message.clear();result.setText(selected==FeedbackService.Kind.BUG_REPORT?"Bug report and redacted diagnostics sent.":"Suggestion sent. Thank you.");status.setText("Feedback sent successfully.");}
+            submit.setDisable(true);kind.setDisable(true);title.setDisable(true);message.setDisable(true);sending.setManaged(true);sending.setVisible(true);result.setText("Sending securely to the AOKUVUE Discord webhook…");
+            app.feedback().submit(selected,reportTitle,text).whenComplete((ignored,error)->Platform.runLater(()->{
+                submit.setDisable(false);kind.setDisable(false);title.setDisable(false);message.setDisable(false);sending.setManaged(false);sending.setVisible(false);
+                if(error==null){title.clear();message.clear();result.setText(selected==FeedbackService.Kind.BUG_REPORT?"Bug report and redacted diagnostics sent.":"Suggestion sent. Thank you.");status.setText("Feedback sent successfully.");}
                 else {result.setText("Could not send feedback: "+root(error));status.setText("Feedback submission failed.");}
             }));
         });
         HBox action=new HBox(10,submit,sending,result);action.setAlignment(Pos.CENTER_LEFT);HBox.setHgrow(result,Priority.ALWAYS);
-        return settingsCard("Suggestions & Bugs",field("Submission type",kind),field("Message",new VBox(6,message,counter)),privacy,action);
+        return settingsCard("Suggestions & Bugs",field("Submission type",kind),field("Title",new VBox(6,title,titleCounter)),field("Message",new VBox(6,message,counter)),privacy,action);
     }
 
     private Node brandPageHeader(Label title,Label subtitle){
