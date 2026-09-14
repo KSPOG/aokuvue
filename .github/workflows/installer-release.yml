@@ -2,7 +2,7 @@ name: Aokuvue Installer
 
 on:
   push:
-    branches: [ main, dev ]
+    branches: [ main ]
     paths:
       - 'installer/**'
       - '.github/workflows/installer-release.yml'
@@ -10,7 +10,7 @@ on:
       - 'src/main/resources/images/aokuvue-moonlight.png'
       - 'src/main/resources/images/aokuvue.ico'
   pull_request:
-    branches: [ main, dev ]
+    branches: [ main ]
     paths:
       - 'installer/**'
       - '.github/workflows/installer-release.yml'

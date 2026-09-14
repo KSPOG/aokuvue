@@ -28,6 +28,7 @@ from PIL import Image, ImageTk
 
 APP_NAME = "Aokuvue"
 INSTALLER_VERSION = "1.1.1"
+SOURCE_BRANCH = "main"
 REPOSITORY = "KSPOG/aokuvue"
 GITHUB_API = f"https://api.github.com/repos/{REPOSITORY}"
 ADOPTIUM_API = (
@@ -60,6 +61,8 @@ def canonical_state_file() -> Path:
 
 
 def legacy_state_files() -> list[Path]:
+    if SOURCE_BRANCH != "main":
+        return []
     root = local_app_data()
     return [
         root / "AOKUVUE" / "installer" / "state.json",
@@ -209,11 +212,11 @@ def parse_version_text(value: str) -> tuple[int, ...]:
     return tuple(parts or [0])
 
 
-def latest_main_commit() -> str:
-    data = request_json(f"{GITHUB_API}/commits/main")
+def latest_source_commit() -> str:
+    data = request_json(f"{GITHUB_API}/commits/{SOURCE_BRANCH}")
     sha = str(data.get("sha", "")).strip()
     if not re.fullmatch(r"[0-9a-fA-F]{40}", sha):
-        raise RuntimeError("GitHub did not return a valid Aokuvue main-branch commit")
+        raise RuntimeError(f"GitHub did not return a valid {APP_NAME} {SOURCE_BRANCH}-branch commit")
     return sha.lower()
 
 
@@ -353,7 +356,7 @@ def package_application(project: Path, jdk: Path, work_dir: Path, version: str, 
     project_cache.mkdir(parents=True, exist_ok=True)
 
     gradle = project / "gradlew.bat"
-    log("Building and testing Aokuvue…")
+    log(f"Building and testing {APP_NAME}…")
     set_progress(52)
     run_process(
         [str(gradle), "clean", "test", "installDist", "--no-daemon", "--stacktrace",
@@ -375,7 +378,7 @@ def package_application(project: Path, jdk: Path, work_dir: Path, version: str, 
     package_dest = work_dir / "package"
     package_dest.mkdir(parents=True, exist_ok=True)
     jpackage = jdk / "bin" / "jpackage.exe"
-    log("Packaging the Aokuvue Windows application…")
+    log(f"Packaging the {APP_NAME} Windows application…")
     run_process(
         [
             str(jpackage),
@@ -398,7 +401,7 @@ def package_application(project: Path, jdk: Path, work_dir: Path, version: str, 
     )
     result = package_dest / APP_NAME
     if not (result / f"{APP_NAME}.exe").is_file():
-        raise RuntimeError("jpackage completed but Aokuvue.exe was not produced")
+        raise RuntimeError(f"jpackage completed but {APP_NAME}.exe was not produced")
     set_progress(88)
     return result
 
@@ -423,20 +426,20 @@ def process_running(pid: int) -> bool:
 def wait_for_pid(pid: int, log, timeout: float = 60.0) -> None:
     if pid <= 0:
         return
-    log(f"Waiting for Aokuvue process {pid} to close…")
+    log(f"Waiting for {APP_NAME} process {pid} to close…")
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if not process_running(pid):
             return
         time.sleep(0.4)
-    raise RuntimeError("Aokuvue did not close in time. Close the application and try the update again.")
+    raise RuntimeError(f"{APP_NAME} did not close in time. Close the application and try the update again.")
 
 
 def running_aokuvue_pids() -> list[int]:
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
         result = subprocess.run(
-            ["tasklist", "/FI", "IMAGENAME eq Aokuvue.exe", "/FO", "CSV", "/NH"],
+            ["tasklist", "/FI", f"IMAGENAME eq {APP_NAME}.exe", "/FO", "CSV", "/NH"],
             capture_output=True,
             text=True,
             timeout=8,
@@ -444,7 +447,7 @@ def running_aokuvue_pids() -> list[int]:
         )
         pids: list[int] = []
         for line in result.stdout.splitlines():
-            match = re.search(r'^"Aokuvue\.exe","(\d+)"', line, re.IGNORECASE)
+            match = re.search(rf'^"{re.escape(APP_NAME)}\.exe","(\d+)"', line, re.IGNORECASE)
             if match:
                 pids.append(int(match.group(1)))
         return pids
@@ -456,7 +459,7 @@ def stop_running_aokuvue(log) -> None:
     pids = running_aokuvue_pids()
     if not pids:
         return
-    log("Closing the running Aokuvue application…")
+    log(f"Closing the running {APP_NAME} application…")
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     for pid in pids:
         subprocess.run(
@@ -469,7 +472,7 @@ def stop_running_aokuvue(log) -> None:
     while time.monotonic() < deadline and any(process_running(pid) for pid in pids):
         time.sleep(0.3)
     if any(process_running(pid) for pid in pids):
-        raise RuntimeError("Aokuvue is still running. Close it before installing the update.")
+        raise RuntimeError(f"{APP_NAME} is still running. Close it before installing the update.")
 
 
 def install_app_image(app_image: Path, destination: Path, log, set_progress) -> None:
@@ -481,21 +484,21 @@ def install_app_image(app_image: Path, destination: Path, log, set_progress) -> 
     shutil.rmtree(staging, ignore_errors=True)
     shutil.rmtree(backup, ignore_errors=True)
 
-    log(f"Staging Aokuvue in {destination}…")
+    log(f"Staging {APP_NAME} in {destination}…")
     shutil.copytree(app_image, staging)
     if not (staging / f"{APP_NAME}.exe").is_file():
         shutil.rmtree(staging, ignore_errors=True)
-        raise RuntimeError("Staged Aokuvue application is incomplete")
+        raise RuntimeError(f"Staged {APP_NAME} application is incomplete")
     set_progress(94)
 
     had_existing = destination.exists()
     try:
         if had_existing:
-            log("Replacing the existing Aokuvue installation…")
+            log(f"Replacing the existing {APP_NAME} installation…")
             destination.replace(backup)
         staging.replace(destination)
         if not (destination / f"{APP_NAME}.exe").is_file():
-            raise RuntimeError("Installed Aokuvue.exe could not be verified")
+            raise RuntimeError(f"Installed {APP_NAME}.exe could not be verified")
         shutil.rmtree(backup, ignore_errors=True)
     except Exception:
         if destination.exists():
@@ -510,7 +513,7 @@ def install_app_image(app_image: Path, destination: Path, log, set_progress) -> 
 def launch_application(install_dir: Path) -> None:
     executable = install_dir.expanduser().absolute() / f"{APP_NAME}.exe"
     if not executable.is_file():
-        raise RuntimeError(f"Aokuvue is not installed at {install_dir}")
+        raise RuntimeError(f"{APP_NAME} is not installed at {install_dir}")
     subprocess.Popen([str(executable)], cwd=str(executable.parent))
 
 
@@ -518,7 +521,7 @@ class InstallerWindow:
     def __init__(self, args: argparse.Namespace):
         self.args = args
         self.root = tk.Tk()
-        self.root.title("Aokuvue / Installer")
+        self.root.title(f"{APP_NAME} / Installer")
         self.root.geometry("895x622")
         self.root.minsize(760, 560)
         self.root.configure(bg=BG)
@@ -527,7 +530,7 @@ class InstallerWindow:
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
         self.busy = False
         self.install_dir = tk.StringVar(value=str(preferred_install_dir(args.install_dir)))
-        self.status = tk.StringVar(value="Ready to install or update Aokuvue.")
+        self.status = tk.StringVar(value=f"Ready to install or update {APP_NAME}.")
         self.progress = tk.DoubleVar(value=0)
         self.background_photo = None
         self.logo_photo = None
@@ -543,7 +546,7 @@ class InstallerWindow:
         self._build()
         self.root.after(100, self._pump_events)
         if args.update:
-            self.status.set("Update mode — preparing to update Aokuvue.")
+            self.status.set(f"Update mode — preparing to update {APP_NAME}.")
             self.root.after(550, self.start_install)
 
     def _configure_styles(self):
@@ -590,11 +593,11 @@ class InstallerWindow:
             except Exception:
                 pass
 
-        tk.Label(body, text="Aokuvue", bg=PANEL, fg=TEXT, font=("Georgia", 26)).pack(anchor="w", pady=(10, 1))
+        tk.Label(body, text=APP_NAME, bg=PANEL, fg=TEXT, font=("Georgia", 26)).pack(anchor="w", pady=(10, 1))
         tk.Label(body, text="Installer & Updater", bg=PANEL, fg=TEXT, font=("Georgia", 21)).pack(anchor="w")
         tk.Label(
             body,
-            text="Install or update Aokuvue from the official KSPOG/aokuvue main branch.",
+            text=f"Install or update {APP_NAME} from the official KSPOG/aokuvue {SOURCE_BRANCH} branch.",
             bg=PANEL,
             fg=MUTED,
             font=("Segoe UI", 9),
@@ -653,7 +656,7 @@ class InstallerWindow:
         actions.pack(fill=X, pady=(0, 10))
         self.install_button = self._button(actions, "Build & Update", self.start_install, primary=True, width=15)
         self.install_button.pack(side=LEFT, ipady=4)
-        self.launch_button = self._button(actions, "Launch Aokuvue", self.launch, primary=False, width=15)
+        self.launch_button = self._button(actions, f"Launch {APP_NAME}", self.launch, primary=False, width=18)
         self.launch_button.pack(side=LEFT, padx=(10, 0), ipady=4)
         self._refresh_launch_state()
 
@@ -675,7 +678,7 @@ class InstallerWindow:
         self.log_text.pack(side=LEFT, fill=BOTH, expand=True, padx=8, pady=6)
         scrollbar.configure(command=self.log_text.yview)
         self.log_text.configure(state="disabled")
-        self._log(f"Aokuvue Installer & Updater v{INSTALLER_VERSION}")
+        self._log(f"{APP_NAME} Installer & Updater v{INSTALLER_VERSION}")
         self._log(f"Install path: {self.install_dir.get()}")
 
         canvas.bind("<Configure>", self._resize_panel)
@@ -710,7 +713,7 @@ class InstallerWindow:
         )
 
     def browse(self):
-        selected = filedialog.askdirectory(initialdir=self.install_dir.get(), title="Choose Aokuvue install folder")
+        selected = filedialog.askdirectory(initialdir=self.install_dir.get(), title=f"Choose {APP_NAME} install folder")
         if selected:
             self.install_dir.set(selected)
             self._remember_current_path()
@@ -729,14 +732,14 @@ class InstallerWindow:
         installed = (path / f"{APP_NAME}.exe").is_file()
         self.launch_button.configure(state="normal" if installed and not self.busy else "disabled")
         if installed and not self.busy and not self.args.update:
-            self.status.set("Existing Aokuvue installation detected — update mode.")
+            self.status.set(f"Existing {APP_NAME} installation detected — update mode.")
 
     def start_install(self):
         if self.busy:
             return
         value = self.install_dir.get().strip()
         if not value:
-            messagebox.showerror("Aokuvue Installer", "Choose an install folder first.", parent=self.root)
+            messagebox.showerror(f"{APP_NAME} Installer", "Choose an install folder first.", parent=self.root)
             return
         destination = Path(value).expanduser().absolute()
         self.install_dir.set(str(destination))
@@ -746,8 +749,8 @@ class InstallerWindow:
             pids = running_aokuvue_pids()
             if pids:
                 accepted = messagebox.askyesno(
-                    "Close Aokuvue?",
-                    "Aokuvue is currently running and must close before its files can be updated.\n\nClose Aokuvue and continue?",
+                    f"Close {APP_NAME}?",
+                    f"{APP_NAME} is currently running and must close before its files can be updated.\n\nClose {APP_NAME} and continue?",
                     parent=self.root,
                 )
                 if not accepted:
@@ -764,12 +767,12 @@ class InstallerWindow:
 
     def _install_worker(self, destination: Path):
         try:
-            with tempfile.TemporaryDirectory(prefix="AokuvueInstaller-") as temporary:
+            with tempfile.TemporaryDirectory(prefix=f"{APP_NAME.replace(' ', '')}Installer-") as temporary:
                 work_dir = Path(temporary)
-                self._status("Checking the latest Aokuvue version…")
-                commit = latest_main_commit()
+                self._status(f"Checking the latest {APP_NAME} version…")
+                commit = latest_source_commit()
                 version = latest_app_version(commit)
-                self._log_threadsafe(f"Latest Aokuvue: {version} ({commit[:12]})")
+                self._log_threadsafe(f"Latest {APP_NAME}: {version} ({commit[:12]})")
                 self._progress(5)
 
                 project = download_source(commit, work_dir, self._log_threadsafe, self._progress)
@@ -777,12 +780,12 @@ class InstallerWindow:
                 image = package_application(project, jdk, work_dir, version, self._log_threadsafe, self._progress)
 
                 if self.args.wait_pid:
-                    self._status("Waiting for Aokuvue to close before updating…")
+                    self._status(f"Waiting for {APP_NAME} to close before updating…")
                     wait_for_pid(int(self.args.wait_pid), self._log_threadsafe)
                 else:
                     stop_running_aokuvue(self._log_threadsafe)
 
-                self._status(f"Installing Aokuvue {version}…")
+                self._status(f"Installing {APP_NAME} {version}…")
                 install_app_image(image, destination, self._log_threadsafe, self._progress)
                 remember_install_dir(destination)
                 self.events.put(("complete", version))
@@ -793,7 +796,7 @@ class InstallerWindow:
         try:
             launch_application(Path(self.install_dir.get()))
         except Exception as error:
-            messagebox.showerror("Aokuvue Installer", str(error), parent=self.root)
+            messagebox.showerror(f"{APP_NAME} Installer", str(error), parent=self.root)
 
     def _progress(self, value: float):
         self.events.put(("progress", float(value)))
@@ -823,13 +826,13 @@ class InstallerWindow:
                 elif kind == "complete":
                     self.busy = False
                     version = str(value)
-                    self.status.set(f"Aokuvue {version} installed successfully.")
+                    self.status.set(f"{APP_NAME} {version} installed successfully.")
                     self.status_label.configure(fg=SUCCESS)
                     self.install_button.configure(state="normal")
                     self.browse_button.configure(state="normal")
                     self.progress.set(100)
                     self._refresh_launch_state()
-                    self._log(f"Aokuvue {version} installation complete.")
+                    self._log(f"{APP_NAME} {version} installation complete.")
                 elif kind == "failed":
                     self.busy = False
                     error = value
@@ -847,7 +850,7 @@ class InstallerWindow:
     def on_close(self):
         if self.busy:
             if not messagebox.askyesno(
-                "Exit Aokuvue Installer?",
+                f"Exit {APP_NAME} Installer?",
                 "An install or update is still running. Exiting now will cancel the installer window. Continue?",
                 parent=self.root,
             ):
@@ -859,8 +862,15 @@ class InstallerWindow:
 
 
 def run_self_test() -> int:
-    assert APP_NAME == "Aokuvue"
-    assert INSTALLER_VERSION == "1.1.1"
+    assert APP_NAME.strip()
+    assert INSTALLER_VERSION.strip()
+    assert SOURCE_BRANCH in {"main", "dev"}
+    assert default_install_dir().name == APP_NAME
+    assert canonical_state_file().parent.parent.name == APP_NAME
+    assert installer_cache_dir().parent.name == APP_NAME
+    if SOURCE_BRANCH == "dev":
+        assert APP_NAME != "Aokuvue"
+        assert not legacy_state_files()
     assert parse_build_version("group='x'\nversion = '1.5.18'\n") == "1.5.18"
     assert parse_version_text("v1.10.0") > parse_version_text("1.9.9")
 
@@ -869,12 +879,12 @@ def run_self_test() -> int:
     assert str(remembered).lower().endswith(r"apps\aokuvue")
     assert str(explicit).lower().endswith(r"custom\aokuvue")
     assert gradle_user_home_dir().name == "gradle-home"
-    print(f"{APP_NAME} Installer & Updater v{INSTALLER_VERSION} self-test passed")
+    print(f"{APP_NAME} Installer & Updater v{INSTALLER_VERSION} ({SOURCE_BRANCH}) self-test passed")
     return 0
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Aokuvue Installer & Updater")
+    parser = argparse.ArgumentParser(description=f"{APP_NAME} Installer & Updater")
     parser.add_argument("--update", action="store_true", help="Automatically start an application update")
     parser.add_argument("--install-dir", help="Install/update destination")
     parser.add_argument("--wait-pid", type=int, default=0, help="Wait for an Aokuvue process to exit before replacing files")
@@ -887,7 +897,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.self_test:
         return run_self_test()
     if os.name != "nt":
-        print("Aokuvue Installer & Updater is Windows-only.", file=sys.stderr)
+        print(f"{APP_NAME} Installer & Updater is Windows-only.", file=sys.stderr)
         return 2
     InstallerWindow(args).run()
     return 0
