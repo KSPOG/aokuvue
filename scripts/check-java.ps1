@@ -28,7 +28,7 @@ if (-not $java -or -not $javac) {
 $javaMajor = Get-JavaMajor $java.Source
 $javacMajor = Get-JavaMajor $javac.Source
 if ($javaMajor -ne 21 -or $javacMajor -ne 21) {
-    Write-Host "AOKUVUE requires JDK 21. PATH currently resolves java=$javaMajor, javac=$javacMajor." -ForegroundColor Red
+    Write-Host "Aokuvue requires JDK 21. PATH currently resolves java=$javaMajor, javac=$javacMajor." -ForegroundColor Red
     Write-Host 'Set JAVA_HOME to your JDK 21 directory and put %JAVA_HOME%\bin before older Java installations on PATH.' -ForegroundColor Yellow
     exit 1
 }
