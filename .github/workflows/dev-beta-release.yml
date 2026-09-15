@@ -17,8 +17,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     env:
-      BETA_VERSION: '0.0.3'
-      RELEASE_TAG: 'beta-0.0.3'
+      BETA_VERSION: '0.0.4'
+      RELEASE_TAG: 'beta-0.0.4'
 
     steps:
       - name: Checkout dev
@@ -38,7 +38,7 @@ jobs:
         shell: pwsh
         run: .\gradlew.bat clean test installDist --no-daemon --stacktrace
 
-      - name: Package Beta 0.0.3
+      - name: Package Beta 0.0.4
         shell: pwsh
         run: |
           $runtimeVersion = (.\gradlew.bat -q printVersion --no-daemon | Select-Object -Last 1).Trim()
@@ -88,6 +88,7 @@ jobs:
           - Paginated AniList catalogs for Explore, Manga, Hentai, Movies, Originals and Curated.
           - Automatic additional-page loading near the end of the catalog plus a manual Load more fallback.
           - Settings > Appearance now identifies this channel as **Beta - $env:BETA_VERSION**.
+          - Native in-app MangaDex reader with chapter/page navigation and saved reading position.
 
           This is a development prerelease and is not the public stable `main` release.
           "@

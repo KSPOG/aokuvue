@@ -16,6 +16,8 @@ jobs:
   build-and-release:
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      BETA_VERSION: '0.0.4'
     steps:
       - name: Checkout dev
         uses: actions/checkout@v4
@@ -62,11 +64,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = 'dev-app-latest'
-          $notes = "Verified prebuilt Aokuvue Dev $env:AOKUVUE_DEV_VERSION from commit ${{ github.sha }}. This package is consumed by the native development-channel installer."
+          $notes = "Verified prebuilt Aokuvue Beta - $env:BETA_VERSION (internal revision $env:AOKUVUE_DEV_VERSION) from commit ${{ github.sha }}. This package is consumed by the native development-channel installer."
           gh release view $tag --repo '${{ github.repository }}' *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag 'dist\AokuvueDev-windows-x64.zip' 'dist\AokuvueDev-windows-x64.zip.sha256' --repo '${{ github.repository }}' --clobber
-            gh release edit $tag --repo '${{ github.repository }}' --target '${{ github.sha }}' --title "Aokuvue Dev $env:AOKUVUE_DEV_VERSION" --notes $notes --prerelease
+            gh release edit $tag --repo '${{ github.repository }}' --target '${{ github.sha }}' --title "Aokuvue Dev Beta - $env:BETA_VERSION" --notes $notes --prerelease
           } else {
-            gh release create $tag 'dist\AokuvueDev-windows-x64.zip' 'dist\AokuvueDev-windows-x64.zip.sha256' --repo '${{ github.repository }}' --target '${{ github.sha }}' --title "Aokuvue Dev $env:AOKUVUE_DEV_VERSION" --notes $notes --prerelease
+            gh release create $tag 'dist\AokuvueDev-windows-x64.zip' 'dist\AokuvueDev-windows-x64.zip.sha256' --repo '${{ github.repository }}' --target '${{ github.sha }}' --title "Aokuvue Dev Beta - $env:BETA_VERSION" --notes $notes --prerelease
           }
