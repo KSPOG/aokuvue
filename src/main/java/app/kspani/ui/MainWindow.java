@@ -51,7 +51,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public final class MainWindow extends BorderPane {
-    private enum Page { HOME, ANIME, HENTAI, MANGA, MY_LIST, SEARCH, SETTINGS, DETAILS, PLAYER }
+    private enum Page { HOME, ANIME, HENTAI, MANGA, MY_LIST, SEARCH, SETTINGS, DETAILS, READER, PLAYER }
 
     private record SeasonChoice(AnimeSeasonRef season, int ordinal) {
         @Override public String toString() { return season.displayLabel(ordinal); }
@@ -367,9 +367,9 @@ public final class MainWindow extends BorderPane {
             case MY_LIST -> listView();
             case SEARCH -> searchPlaceholder();
             case SETTINGS -> settingsView();
-            case DETAILS, PLAYER -> content.getChildren().isEmpty() ? homeView() : content.getChildren().get(0);
+            case DETAILS, READER, PLAYER -> content.getChildren().isEmpty() ? homeView() : content.getChildren().get(0);
         };
-        if (target != Page.DETAILS && target != Page.PLAYER) content.getChildren().setAll(node);
+        if (target != Page.DETAILS && target != Page.READER && target != Page.PLAYER) content.getChildren().setAll(node);
     }
 
     private void updateNav() {
@@ -381,7 +381,7 @@ public final class MainWindow extends BorderPane {
             case MANGA -> mangaNav.getStyleClass().add("selected");
             case MY_LIST -> listNav.getStyleClass().add("selected");
             case SETTINGS -> settingsNav.getStyleClass().add("selected");
-            case DETAILS, PLAYER -> homeNav.getStyleClass().add("selected");
+            case DETAILS, READER, PLAYER -> homeNav.getStyleClass().add("selected");
             default -> {}
         }
     }
@@ -690,7 +690,7 @@ public final class MainWindow extends BorderPane {
     }
 
     private void openDetails(AniMedia preview) {
-        beforeDetails = page == Page.DETAILS || page == Page.PLAYER ? Page.HOME : page;
+        beforeDetails = page == Page.DETAILS || page == Page.READER || page == Page.PLAYER ? Page.HOME : page;
         page = Page.DETAILS; updateNav(); currentEpisodeLoad=null; currentEpisodeList=null; ++episodeLoadGeneration; status.setText("Loading " + preview.title() + "…");
         content.getChildren().setAll(loadingCard("Loading media details…"));
         app.anilist().details(preview.id(), preview.type()).whenComplete((media,error) -> Platform.runLater(() -> {
@@ -1355,6 +1355,23 @@ public final class MainWindow extends BorderPane {
         engine.load(uri.toString());
     }
 
+    private void showMangaReader(AniMedia media) {
+        if (media == null || media.type() != MediaType.MANGA) return;
+        playerLoadGeneration++;
+        app.player().close();
+        page = Page.READER;
+        updateNav();
+        MangaReaderPane reader = new MangaReaderPane(app.http(), media, () -> {
+            page = Page.DETAILS;
+            updateNav();
+            content.getChildren().setAll(detailsView(media));
+            status.setText(media.title());
+        }, text -> Platform.runLater(() -> status.setText(text)));
+        content.getChildren().setAll(reader);
+        status.setText("Opening " + media.title() + " in the native manga reader…");
+        Platform.runLater(reader::requestFocus);
+    }
+
     private void showEverythingMoePlayer(AniMedia media, ProviderSite source) {
         if(media==null||source==null||source.baseUri()==null)return;
         playerLoadGeneration++;
@@ -1383,7 +1400,7 @@ public final class MainWindow extends BorderPane {
         URI launch=providerLaunchUri(media,source);
         status.setText("Opening "+source.name()+" inside Aokuvue…");
         engine.getLoadWorker().stateProperty().addListener((obs,oldState,newState)->{
-            if(newState==Worker.State.SUCCEEDED)status.setText(source.name()+" loaded. Select an episode on the provider page.");
+            if(newState==Worker.State.SUCCEEDED)status.setText(source.name()+" loaded. Select a chapter on the provider page.");
             else if(newState==Worker.State.FAILED){Throwable error=engine.getLoadWorker().getException();status.setText(source.name()+" failed to load: "+(error==null?"unknown error":root(error)));}
         });
         engine.load(launch.toString());

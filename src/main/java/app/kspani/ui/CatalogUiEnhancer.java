@@ -834,11 +834,13 @@ public final class CatalogUiEnhancer {
     private VBox mangaSourceCard(AniMedia media) {
         Label kicker = new Label("READ IN AOKUVUE"); kicker.getStyleClass().add("section-kicker");
         Label title = new Label("Manga sources"); title.getStyleClass().add("section-title");
-        Label note = new Label("EverythingMoe Manga Reading sources. Sites open inside AOKUVUE's embedded browser; chapter availability is controlled by the selected provider.");
+        Label note = new Label("Read English MangaDex chapters in Aokuvue's native reader, or open another EverythingMoe-ranked provider in the embedded browser.");
         note.setWrapText(true); note.getStyleClass().add("source-status");
         ComboBox<ProviderSite> sources = new ComboBox<>(FXCollections.observableArrayList(mangaDirectory.latestSnapshot()));
         sources.setPrefWidth(320); if (!sources.getItems().isEmpty()) sources.getSelectionModel().selectFirst();
-        Button open = new Button("Read in AOKUVUE"); open.getStyleClass().add("primary-button");
+        Button nativeReader = new Button("Open native reader"); nativeReader.getStyleClass().add("primary-button");
+        nativeReader.setOnAction(e -> invokeMangaReader(media));
+        Button open = new Button("Open provider"); open.getStyleClass().add("secondary-button");
         open.disableProperty().bind(sources.valueProperty().isNull());
         open.setOnAction(e -> { ProviderSite source = sources.getValue(); if (source != null) invokeProviderBrowser(media, source); });
         Button refresh = new Button("Refresh sources"); refresh.getStyleClass().add("secondary-button");
@@ -850,7 +852,7 @@ public final class CatalogUiEnhancer {
                 if (!sources.getItems().isEmpty()) sources.getSelectionModel().selectFirst();
             }));
         });
-        FlowPane controls = new FlowPane(8, 8, sources, open, refresh); controls.setAlignment(Pos.CENTER_LEFT);
+        FlowPane controls = new FlowPane(8, 8, nativeReader, sources, open, refresh); controls.setAlignment(Pos.CENTER_LEFT);
         VBox card = new VBox(10, kicker, title, note, controls); card.getStyleClass().add("info-card"); card.setPadding(new Insets(18));
         return card;
     }
@@ -1128,6 +1130,15 @@ public final class CatalogUiEnhancer {
             Node found = findById(tab.getContent(), id); if (found != null) return found;
         }
         return null;
+    }
+
+    private void invokeMangaReader(AniMedia media) {
+        try {
+            Method method = MainWindow.class.getDeclaredMethod("showMangaReader", AniMedia.class);
+            method.setAccessible(true); method.invoke(root, media);
+        } catch (Exception error) {
+            System.err.println("[Aokuvue][Catalog] Unable to open native manga reader: " + error.getMessage());
+        }
     }
 
     static boolean isEnhancedCatalogView(Node view) {

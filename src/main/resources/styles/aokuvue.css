@@ -108,6 +108,24 @@
 /* Player */
 .player-screen, .video-stage { -fx-background-color: #020205; }.player-top { -fx-background-color: rgba(8,8,14,.76); -fx-border-color: transparent transparent #28233a transparent; }.player-controls { -fx-background-color: rgba(8,8,14,.99); -fx-border-color: #302a47 transparent transparent transparent; }.player-timeline { -fx-padding: 0 0 7px 0; }.player-controls .button { -fx-background-color: transparent; -fx-text-fill: -aok-pale; -fx-border-color: transparent; -fx-font-size: 14px; }.player-controls .button:hover { -fx-text-fill: white; -fx-border-color: -aok-luminous; }.player-controls .player-primary-control { -fx-min-width: 62px; -fx-min-height: 62px; -fx-background-color: rgba(42,23,64,.42); -fx-border-color: -aok-luminous; -fx-border-radius: 34px; -fx-background-radius: 34px; -fx-font-size: 22px; -fx-effect: dropshadow(gaussian,rgba(142,124,255,.34),16,.16,0,0); }.player-controls .combo-box { -fx-background-color: #11111c; }.player-title { -fx-font-family: "Georgia",serif; -fx-font-size: 15px; }.player-media-title { -fx-font-family: "Georgia",serif; -fx-font-size: 26px; }.player-meta { -fx-text-fill: #9d95af; -fx-font-size: 10px; }.player-cover { -fx-effect: dropshadow(gaussian,rgba(0,0,0,.6),14,.12,0,3); }.player-fullscreen .player-controls { -fx-background-color: rgba(8,8,14,.96); }
 
+/* Native manga reader */
+.manga-reader { -fx-background-color: #07070c; }
+.reader-top, .reader-bottom { -fx-background-color: #0c0c14; -fx-border-color: #2d2840; }
+.reader-top { -fx-border-width: 0 0 1px 0; }
+.reader-bottom { -fx-border-width: 1px 0 0 0; }
+.reader-title { -fx-font-family: "Georgia",serif; -fx-font-size: 20px; -fx-text-fill: -aok-pale; }
+.reader-source, .reader-credit, .reader-chapter-meta { -fx-text-fill: #968da8; -fx-font-size: 9px; }
+.reader-sidebar { -fx-background-color: #0b0b12; -fx-border-color: transparent #2d2840 transparent transparent; }
+.reader-chapters { -fx-background-color: transparent; -fx-control-inner-background: #0b0b12; }
+.reader-chapters .list-cell { -fx-background-color: transparent; -fx-border-color: transparent transparent #211e2e transparent; -fx-padding: 10px 8px; }
+.reader-chapters .list-cell:hover { -fx-background-color: #151222; }
+.reader-chapters .list-cell:selected { -fx-background-color: #25183a; -fx-border-color: transparent transparent transparent -aok-luminous; -fx-border-width: 0 0 0 2px; }
+.reader-chapter-title { -fx-text-fill: #e9e4f2; -fx-font-size: 11px; }
+.reader-scroll, .reader-scroll > .viewport { -fx-background-color: #040407; }
+.reader-page-stage { -fx-background-color: #040407; -fx-padding: 24px; }
+.reader-page-stage .image-view { -fx-effect: dropshadow(gaussian,rgba(0,0,0,.75),22,.18,0,5); }
+.reader-controls { -fx-min-height: 38px; }
+
 /* Dark native surfaces */
 .scroll-bar:horizontal, .scroll-bar:vertical, .scroll-bar .track { -fx-background-color: transparent; }.scroll-bar .thumb { -fx-background-color: #363047; -fx-background-radius: 8px; }.scroll-bar .thumb:hover { -fx-background-color: -aok-royal-violet; }
 .tooltip, .context-menu { -fx-background-color: -aok-midnight; -fx-border-color: #423b58; -fx-text-fill: -aok-pale; }.menu-item .label { -fx-text-fill: -aok-pale; }.menu-item:focused { -fx-background-color: -aok-deep-violet; }.dialog-pane { -fx-background-color: -aok-obsidian; -fx-border-color: #423b58; }.dialog-pane .header-panel { -fx-background-color: -aok-midnight; }.dialog-pane .label { -fx-text-fill: -aok-pale; }.progress-indicator { -fx-progress-color: -aok-luminous; }
