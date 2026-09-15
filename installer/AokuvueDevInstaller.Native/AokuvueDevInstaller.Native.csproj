@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>AokuvueDevInstaller</AssemblyName>
     <RootNamespace>AokuvueDevInstaller</RootNamespace>
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
     <ApplicationIcon>..\..\src\main\resources\images\aokuvue.ico</ApplicationIcon>
   </PropertyGroup>
 </Project>

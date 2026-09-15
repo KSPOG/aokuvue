@@ -13,7 +13,6 @@ import javafx.animation.FadeTransition;
 import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
-import javafx.animation.ParallelTransition;
 import javafx.animation.PauseTransition;
 import javafx.animation.Timeline;
 import javafx.geometry.Insets;
@@ -64,8 +63,6 @@ public final class Main extends Application {
         stage.setMinHeight(700);
         stage.setScene(scene);
         stage.setOpacity(0);
-        stage.show();
-        stage.centerOnScreen();
         splash.status().setText("Loading your AOKUVUE library…");
 
         root.initialContentReady().whenComplete((ignored,error)->Platform.runLater(()->{
@@ -83,19 +80,24 @@ public final class Main extends Application {
     }
 
     private void revealMainWindow(Stage stage,MainWindow root,StackPane sceneRoot,SplashHandle splash){
-        Timeline windowFade=new Timeline(
-                new KeyFrame(Duration.ZERO,new KeyValue(stage.opacityProperty(),0)),
-                new KeyFrame(Duration.millis(560),new KeyValue(stage.opacityProperty(),1, Interpolator.EASE_BOTH)));
         FadeTransition splashFade=new FadeTransition(Duration.millis(520),splash.root());
         splashFade.setFromValue(1);splashFade.setToValue(0);
-        ParallelTransition transition=new ParallelTransition(windowFade,splashFade);
-        transition.setOnFinished(event->{
+        splashFade.setOnFinished(event->{
             splash.stage().setAlwaysOnTop(false);
             splash.stage().close();
-            root.requestFocus();
-            checkForUpdates(stage,sceneRoot);
+            stage.centerOnScreen();
+            stage.show();
+            stage.toFront();
+            Timeline windowFade=new Timeline(
+                    new KeyFrame(Duration.ZERO,new KeyValue(stage.opacityProperty(),0)),
+                    new KeyFrame(Duration.millis(420),new KeyValue(stage.opacityProperty(),1, Interpolator.EASE_BOTH)));
+            windowFade.setOnFinished(done->{
+                root.requestFocus();
+                checkForUpdates(stage,sceneRoot);
+            });
+            windowFade.play();
         });
-        transition.play();
+        splashFade.play();
     }
 
     private void checkForUpdates(Stage stage,StackPane sceneRoot) {

@@ -17,8 +17,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     env:
-      INSTALLER_VERSION: '0.2.0'
-      RELEASE_TAG: 'dev-installer-v0.2.0'
+      INSTALLER_VERSION: '0.2.1'
+      RELEASE_TAG: 'dev-installer-v0.2.1'
     steps:
       - name: Checkout dev
         uses: actions/checkout@v4
@@ -70,6 +70,8 @@ jobs:
           - Compiled .NET 8 Windows application.
           - Downloads only the prebuilt Aokuvue Dev package from this repository.
           - Verifies the published SHA-256 checksum before installation.
+          - Handles GitHub's transient moving-release asset-list cache safely.
+          - Closes automatically after Aokuvue Dev starts successfully.
           - Does not install Git, Gradle, Python or a JDK and does not compile source locally.
 
           This prerelease is currently unsigned. Verify its published SHA-256 before use.

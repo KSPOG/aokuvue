@@ -163,7 +163,11 @@ internal sealed class InstallerForm : Form
 
     private void Launch()
     {
-        try { InstallerCore.Launch(Path.GetFullPath(installPath.Text.Trim())); }
+        try
+        {
+            InstallerCore.Launch(Path.GetFullPath(installPath.Text.Trim()));
+            Close();
+        }
         catch (Exception error) { MessageBox.Show(this, error.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
 
@@ -194,8 +198,9 @@ internal sealed record DevRelease(string Version, ReleaseAsset Package, ReleaseA
 internal static class InstallerCore
 {
     private const string AppName = "Aokuvue Dev";
-    private const string InstallerVersion = "0.2.0";
+    private const string InstallerVersion = "0.2.1";
     private const string ReleaseApi = "https://api.github.com/repos/KSPOG/aokuvue/releases/tags/dev-app-latest";
+    private const string ReleaseDownloadBase = "https://github.com/KSPOG/aokuvue/releases/download/dev-app-latest/";
     private const string PackageName = "AokuvueDev-windows-x64.zip";
     private const string ChecksumName = "AokuvueDev-windows-x64.zip.sha256";
     private static readonly HttpClient Http = CreateHttpClient();
@@ -211,6 +216,7 @@ internal static class InstallerCore
         var client = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
         client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AokuvueDevInstaller", InstallerVersion));
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
         return client;
     }
 
@@ -281,23 +287,54 @@ internal static class InstallerCore
 
     private static async Task<DevRelease> ResolveReleaseAsync(CancellationToken cancellationToken)
     {
-        using var response = await Http.GetAsync(ReleaseApi, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
-        var root = document.RootElement;
-        var version = root.TryGetProperty("name", out var name) ? name.GetString() ?? "development" : "development";
-        ReleaseAsset? package = null;
-        ReleaseAsset? checksum = null;
-        foreach (var asset in root.GetProperty("assets").EnumerateArray())
+        var version = "latest development build";
+        for (var attempt = 0; attempt < 3; attempt++)
         {
-            var assetName = asset.GetProperty("name").GetString() ?? "";
-            var url = asset.GetProperty("browser_download_url").GetString() ?? "";
-            if (assetName == PackageName) package = new(assetName, url);
-            if (assetName == ChecksumName) checksum = new(assetName, url);
+            try
+            {
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Get,
+                    $"{ReleaseApi}?installer={InstallerVersion}&attempt={attempt}&time={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}");
+                request.Headers.CacheControl = new CacheControlHeaderValue { NoCache = true, NoStore = true };
+                using var response = await Http.SendAsync(request, cancellationToken);
+                response.EnsureSuccessStatusCode();
+                using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+                var root = document.RootElement;
+                if (root.TryGetProperty("name", out var name)) version = NormalizeReleaseVersion(name.GetString());
+                ReleaseAsset? package = null;
+                ReleaseAsset? checksum = null;
+                if (root.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var asset in assets.EnumerateArray())
+                    {
+                        var assetName = asset.TryGetProperty("name", out var assetNameNode) ? assetNameNode.GetString() ?? "" : "";
+                        var url = asset.TryGetProperty("browser_download_url", out var urlNode) ? urlNode.GetString() ?? "" : "";
+                        if (assetName == PackageName && !string.IsNullOrWhiteSpace(url)) package = new(assetName, url);
+                        if (assetName == ChecksumName && !string.IsNullOrWhiteSpace(url)) checksum = new(assetName, url);
+                    }
+                }
+                if (package is not null && checksum is not null) return new(version, package, checksum);
+            }
+            catch (Exception error) when (error is HttpRequestException or JsonException)
+            {
+                // The stable download fallback below remains checksum-protected.
+            }
+            if (attempt < 2) await Task.Delay(TimeSpan.FromMilliseconds(500 * (attempt + 1)), cancellationToken);
         }
-        return package is null || checksum is null
-            ? throw new InvalidDataException("The latest development release is missing its package or checksum asset.")
-            : new(version.Replace("Aokuvue Dev ", "", StringComparison.OrdinalIgnoreCase), package, checksum);
+
+        // The moving release briefly has an empty API asset list while GitHub replaces its files.
+        // Its download URLs are stable, so fall back to those exact paths and retain checksum verification.
+        return new(version,
+            new ReleaseAsset(PackageName, ReleaseDownloadBase + PackageName),
+            new ReleaseAsset(ChecksumName, ReleaseDownloadBase + ChecksumName));
+    }
+
+    private static string NormalizeReleaseVersion(string? value)
+    {
+        var version = string.IsNullOrWhiteSpace(value) ? "latest development build" : value.Trim();
+        return version.StartsWith("Aokuvue Dev ", StringComparison.OrdinalIgnoreCase)
+            ? version["Aokuvue Dev ".Length..]
+            : version;
     }
 
     private static async Task DownloadAsync(
@@ -421,7 +458,8 @@ internal static class InstallerCore
     {
         var executable = Path.Combine(installDirectory, "Aokuvue Dev.exe");
         if (!File.Exists(executable)) throw new FileNotFoundException("Aokuvue Dev is not installed at the selected path.", executable);
-        Process.Start(new ProcessStartInfo(executable) { WorkingDirectory = installDirectory, UseShellExecute = true });
+        var process = Process.Start(new ProcessStartInfo(executable) { WorkingDirectory = installDirectory, UseShellExecute = true });
+        if (process is null) throw new InvalidOperationException("Windows did not start Aokuvue Dev.");
     }
 
     internal static int RunSelfTest()
@@ -429,6 +467,8 @@ internal static class InstallerCore
         if (ParseSha256(new string('a', 64) + "  package.zip") != new string('a', 64)) return 1;
         if (!PackageName.EndsWith(".zip", StringComparison.Ordinal)) return 2;
         if (!ReleaseApi.StartsWith("https://api.github.com/", StringComparison.Ordinal)) return 3;
+        if (NormalizeReleaseVersion("Aokuvue Dev Beta - 0.0.4") != "Beta - 0.0.4") return 4;
+        if (!ReleaseDownloadBase.StartsWith("https://github.com/KSPOG/aokuvue/releases/download/dev-app-latest/", StringComparison.Ordinal)) return 5;
         Console.WriteLine($"Aokuvue Dev native installer {InstallerVersion} self-test passed.");
         return 0;
     }
