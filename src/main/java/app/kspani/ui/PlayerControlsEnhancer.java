@@ -29,6 +29,7 @@ public final class PlayerControlsEnhancer {
 
     public static void install(Parent root) {
         if (root == null) return;
+        PlayPauseButtonEnhancer.install(root);
         observe(root);
     }
 
