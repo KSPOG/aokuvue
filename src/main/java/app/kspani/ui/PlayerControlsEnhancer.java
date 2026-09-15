@@ -23,7 +23,7 @@ import javafx.scene.layout.VBox;
 public final class PlayerControlsEnhancer {
     private static final String OBSERVED = PlayerControlsEnhancer.class.getName() + ".observed";
     private static final String CONFIGURED = PlayerControlsEnhancer.class.getName() + ".configured";
-    private static final double COMPACT_BREAKPOINT = 1_080.0;
+    private static final double COMPACT_BREAKPOINT = 1_280.0;
 
     private PlayerControlsEnhancer() {}
 
