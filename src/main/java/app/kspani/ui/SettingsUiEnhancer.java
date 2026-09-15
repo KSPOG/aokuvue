@@ -6,6 +6,7 @@ import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.CheckBox;
@@ -17,9 +18,12 @@ import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.Tooltip;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.TextAlignment;
 import javafx.util.StringConverter;
 
 import java.util.List;
@@ -38,6 +42,8 @@ public final class SettingsUiEnhancer {
             SettingsUiEnhancer.class.getName() + ".appearanceVersionEnhanced";
     private static final String SUBTITLE_DRAG_SETTING_ENHANCED =
             SettingsUiEnhancer.class.getName() + ".subtitleDragSettingEnhanced";
+    private static final String SUBTITLE_OVERLAY_ENHANCED =
+            SettingsUiEnhancer.class.getName() + ".subtitleOverlayEnhanced";
 
     private SettingsUiEnhancer() {}
 
@@ -53,10 +59,14 @@ public final class SettingsUiEnhancer {
     }
 
     private static void enhanceTree(Parent parent, AppConfig config, Consumer<String> openUrl) {
-        // Enhancement can replace a slider with a row, so iterate over a stable snapshot.
+        // Enhancement can replace controls, so iterate over a stable snapshot.
         for (Node child : List.copyOf(parent.getChildrenUnmodifiable())) {
             if (child instanceof Slider slider && isWatchThreshold(slider)) {
                 enhanceWatchThreshold(slider);
+            }
+
+            if (child instanceof Label label && label.getStyleClass().contains("subtitle-overlay")) {
+                enhanceSubtitleOverlay(label, config);
             }
 
             if (child instanceof VBox box) {
@@ -166,6 +176,76 @@ public final class SettingsUiEnhancer {
         }
     }
 
+    private static void enhanceSubtitleOverlay(Label subtitle, AppConfig config) {
+        if (Boolean.TRUE.equals(subtitle.getProperties().get(SUBTITLE_OVERLAY_ENHANCED))) return;
+        subtitle.getProperties().put(SUBTITLE_OVERLAY_ENHANCED, Boolean.TRUE);
+
+        // Explicitly center both the label content and wrapped multi-line text.
+        subtitle.setAlignment(Pos.CENTER);
+        subtitle.setTextAlignment(TextAlignment.CENTER);
+
+        boolean draggable = config != null && config.getBoolean("player.subtitleDraggable", false);
+        subtitle.setMouseTransparent(!draggable);
+        subtitle.setCursor(draggable ? Cursor.MOVE : Cursor.DEFAULT);
+
+        if (draggable) {
+            subtitle.setTranslateX(config.getDouble("player.subtitleOffsetX", 0.0));
+            subtitle.setTranslateY(config.getDouble("player.subtitleOffsetY", 0.0));
+        } else {
+            // Disabled always returns the rendered subtitle to its centered default position.
+            subtitle.setTranslateX(0.0);
+            subtitle.setTranslateY(0.0);
+        }
+
+        final double[] drag = new double[4];
+        subtitle.setOnMousePressed(event -> {
+            if (event.getButton() != MouseButton.PRIMARY || config == null
+                    || !config.getBoolean("player.subtitleDraggable", false)) return;
+            drag[0] = event.getSceneX();
+            drag[1] = event.getSceneY();
+            drag[2] = subtitle.getTranslateX();
+            drag[3] = subtitle.getTranslateY();
+            event.consume();
+        });
+
+        subtitle.setOnMouseDragged(event -> {
+            if (!event.isPrimaryButtonDown() || config == null
+                    || !config.getBoolean("player.subtitleDraggable", false)) return;
+
+            double x = drag[2] + event.getSceneX() - drag[0];
+            double y = drag[3] + event.getSceneY() - drag[1];
+
+            if (subtitle.getParent() instanceof Region region) {
+                double horizontalLimit = Math.max(0.0, (region.getWidth() - subtitle.getWidth()) / 2.0 - 20.0);
+                double upwardLimit = Math.max(0.0, region.getHeight() - subtitle.getHeight() - 100.0);
+                x = clamp(x, -horizontalLimit, horizontalLimit);
+                y = clamp(y, -upwardLimit, 20.0);
+            }
+
+            subtitle.setTranslateX(x);
+            subtitle.setTranslateY(y);
+            event.consume();
+        });
+
+        subtitle.setOnMouseReleased(event -> {
+            if (event.getButton() != MouseButton.PRIMARY || config == null
+                    || !config.getBoolean("player.subtitleDraggable", false)) return;
+            config.set("player.subtitleOffsetX", Double.toString(subtitle.getTranslateX()));
+            config.set("player.subtitleOffsetY", Double.toString(subtitle.getTranslateY()));
+            event.consume();
+        });
+
+        subtitle.setOnMouseClicked(event -> {
+            if (event.getButton() != MouseButton.PRIMARY || event.getClickCount() != 2 || config == null
+                    || !config.getBoolean("player.subtitleDraggable", false)) return;
+            subtitle.setTranslateX(0.0);
+            subtitle.setTranslateY(0.0);
+            config.set("player.subtitleOffsetX", "0");
+            config.set("player.subtitleOffsetY", "0");
+            event.consume();
+        });
+    }
+
     private static void enhancePlayerSettingsCard(VBox card, AppConfig config) {
         if (config == null || Boolean.TRUE.equals(card.getProperties().get(SUBTITLE_DRAG_SETTING_ENHANCED))) return;
         if (!card.getStyleClass().contains("settings-card")) return;
@@ -182,7 +262,7 @@ public final class SettingsUiEnhancer {
         draggable.setOnAction(event -> config.set("player.subtitleDraggable", Boolean.toString(draggable.isSelected())));
 
         Label hint = new Label(
-                "Disabled keeps subtitles centered. When enabled, the last dragged position is remembered for future playback.");
+                "Subtitles are centered by default. Enable dragging to reposition them; the last position is remembered. Double-click a subtitle to reset it to center.");
         hint.setWrapText(true);
         hint.getStyleClass().add("source-status");
 
@@ -259,5 +339,9 @@ public final class SettingsUiEnhancer {
 
     private static int clampPercent(int value) {
         return Math.max(50, Math.min(100, value));
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 }
