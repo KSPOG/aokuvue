@@ -10,3 +10,11 @@ player.defaultSpeed=1.0
 
 ui.startTab=HOME
 ui.compactCards=false
+
+# Optional Aokvue support checkout links. Each preset can point to its own
+# Stripe Payment Link. The custom link should be a customer-chooses-amount link.
+support.eur2Url=
+support.eur5Url=
+support.eur10Url=
+support.eur25Url=
+support.customUrl=
