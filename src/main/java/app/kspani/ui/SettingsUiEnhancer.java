@@ -8,7 +8,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
-import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
@@ -17,7 +16,6 @@ import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.Tooltip;
-import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -37,16 +35,6 @@ public final class SettingsUiEnhancer {
             SettingsUiEnhancer.class.getName() + ".watchThresholdEnhanced";
     private static final String APPEARANCE_VERSION_ENHANCED =
             SettingsUiEnhancer.class.getName() + ".appearanceVersionEnhanced";
-
-    private static final List<SupportOption> SUPPORT_OPTIONS = List.of(
-            new SupportOption("€2", "support.eur2Url", false),
-            new SupportOption("€5", "support.eur5Url", false),
-            new SupportOption("€10", "support.eur10Url", false),
-            new SupportOption("€25", "support.eur25Url", false),
-            new SupportOption("Custom amount", "support.customUrl", true)
-    );
-
-    private record SupportOption(String label, String configKey, boolean primary) {}
 
     private SettingsUiEnhancer() {}
 
@@ -73,7 +61,7 @@ public final class SettingsUiEnhancer {
             }
 
             if (child instanceof TabPane tabPane) {
-                enhanceAppearanceVersion(tabPane, config, openUrl);
+                enhanceAppearanceVersion(tabPane);
                 // Tab content is not guaranteed to be present in Parent#getChildrenUnmodifiable
                 // until its tab is selected. Traverse every tab explicitly so Playback is enhanced
                 // even while Appearance is the selected tab.
@@ -171,11 +159,7 @@ public final class SettingsUiEnhancer {
         }
     }
 
-    private static void enhanceAppearanceVersion(
-            TabPane tabPane,
-            AppConfig config,
-            Consumer<String> openUrl
-    ) {
+    private static void enhanceAppearanceVersion(TabPane tabPane) {
         if (Boolean.TRUE.equals(tabPane.getProperties().get(APPEARANCE_VERSION_ENHANCED))) return;
 
         for (Tab tab : tabPane.getTabs()) {
@@ -199,60 +183,29 @@ public final class SettingsUiEnhancer {
             versionCard.getStyleClass().add("settings-card");
             versionCard.setPadding(new Insets(18));
 
-            appearance.getChildren().addAll(versionCard, createSupportCard(config, openUrl));
+            appearance.getChildren().addAll(versionCard, createSupportCard());
             tabPane.getProperties().put(APPEARANCE_VERSION_ENHANCED, Boolean.TRUE);
             return;
         }
     }
 
-    private static VBox createSupportCard(AppConfig config, Consumer<String> openUrl) {
+    private static VBox createSupportCard() {
         Label kicker = new Label("AOKUVUE / SUPPORT");
         kicker.getStyleClass().add("section-kicker");
 
         Label title = new Label("Support Aokvue");
         title.getStyleClass().add("section-title");
 
+        Label comingSoon = new Label("Donation support is coming soon");
+        comingSoon.getStyleClass().add("fact-value");
+
         Label detail = new Label(
-                "If you enjoy Aokvue, you can optionally support continued development, maintenance, "
-                        + "and new features. Choose a preset amount or use Custom amount.");
+                "We're preparing a simple and secure way for viewers to support Aokvue's continued "
+                        + "development, maintenance, and future features. More information will be available soon.");
         detail.setWrapText(true);
         detail.getStyleClass().add("source-status");
 
-        FlowPane amounts = new FlowPane(10, 10);
-        amounts.setAlignment(Pos.CENTER_LEFT);
-        amounts.setPrefWrapLength(560);
-
-        boolean configured = false;
-        for (SupportOption option : SUPPORT_OPTIONS) {
-            String url = config == null ? "" : config.get(option.configKey());
-            Button button = new Button(option.label());
-            button.getStyleClass().add(option.primary() ? "primary-button" : "secondary-button");
-            button.setMinWidth(option.primary() ? 136 : 72);
-
-            if (url.isBlank() || openUrl == null) {
-                button.setDisable(true);
-                button.setTooltip(new Tooltip("This payment option is not configured in this build yet."));
-            } else {
-                configured = true;
-                button.setOnAction(event -> openUrl.accept(url));
-                button.setTooltip(new Tooltip(
-                        option.primary()
-                                ? "Open the secure checkout and enter any amount you prefer."
-                                : "Open the secure checkout for a " + option.label() + " contribution."
-                ));
-            }
-            amounts.getChildren().add(button);
-        }
-
-        Label paymentNote = new Label(
-                configured
-                        ? "Checkout opens in your browser. Payment details are handled by the configured payment provider, not by Aokvue."
-                        : "Support checkout links have not been configured for this build yet."
-        );
-        paymentNote.setWrapText(true);
-        paymentNote.getStyleClass().add("source-status");
-
-        VBox card = new VBox(12, kicker, title, detail, amounts, paymentNote);
+        VBox card = new VBox(10, kicker, title, comingSoon, detail);
         card.getStyleClass().add("settings-card");
         card.setPadding(new Insets(18));
         return card;
