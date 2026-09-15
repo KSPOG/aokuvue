@@ -8,6 +8,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
@@ -35,6 +36,8 @@ public final class SettingsUiEnhancer {
             SettingsUiEnhancer.class.getName() + ".watchThresholdEnhanced";
     private static final String APPEARANCE_VERSION_ENHANCED =
             SettingsUiEnhancer.class.getName() + ".appearanceVersionEnhanced";
+    private static final String SUBTITLE_DRAG_SETTING_ENHANCED =
+            SettingsUiEnhancer.class.getName() + ".subtitleDragSettingEnhanced";
 
     private SettingsUiEnhancer() {}
 
@@ -54,6 +57,10 @@ public final class SettingsUiEnhancer {
         for (Node child : List.copyOf(parent.getChildrenUnmodifiable())) {
             if (child instanceof Slider slider && isWatchThreshold(slider)) {
                 enhanceWatchThreshold(slider);
+            }
+
+            if (child instanceof VBox box) {
+                enhancePlayerSettingsCard(box, config);
             }
 
             if (child instanceof ScrollPane scrollPane && scrollPane.getContent() instanceof Parent content) {
@@ -157,6 +164,31 @@ public final class SettingsUiEnhancer {
                 field.getChildren().add(index + 1, hint);
             }
         }
+    }
+
+    private static void enhancePlayerSettingsCard(VBox card, AppConfig config) {
+        if (config == null || Boolean.TRUE.equals(card.getProperties().get(SUBTITLE_DRAG_SETTING_ENHANCED))) return;
+        if (!card.getStyleClass().contains("settings-card")) return;
+
+        boolean playerCard = card.getChildren().stream()
+                .filter(Label.class::isInstance)
+                .map(Label.class::cast)
+                .anyMatch(label -> "Player".equals(label.getText()));
+        if (!playerCard) return;
+
+        CheckBox draggable = new CheckBox("Allow subtitles to be dragged in the player");
+        draggable.setSelected(config.getBoolean("player.subtitleDraggable", false));
+        draggable.setTooltip(new Tooltip("When enabled, drag the visible subtitle text to reposition it."));
+        draggable.setOnAction(event -> config.set("player.subtitleDraggable", Boolean.toString(draggable.isSelected())));
+
+        Label hint = new Label(
+                "Disabled keeps subtitles centered. When enabled, the last dragged position is remembered for future playback.");
+        hint.setWrapText(true);
+        hint.getStyleClass().add("source-status");
+
+        VBox control = new VBox(6, draggable, hint);
+        card.getChildren().add(control);
+        card.getProperties().put(SUBTITLE_DRAG_SETTING_ENHANCED, Boolean.TRUE);
     }
 
     private static void enhanceAppearanceVersion(TabPane tabPane) {
