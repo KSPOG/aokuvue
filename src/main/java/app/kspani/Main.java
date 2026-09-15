@@ -5,6 +5,7 @@ import app.kspani.app.AppUpdateService;
 import app.kspani.app.DiagnosticLog;
 import app.kspani.ui.CatalogUiEnhancer;
 import app.kspani.ui.MainWindow;
+import app.kspani.ui.PlayerControlsEnhancer;
 import app.kspani.ui.SettingsUiEnhancer;
 import app.kspani.ui.SubtitleOverlayEnhancer;
 import app.kspani.ui.UpdateNotification;
@@ -53,6 +54,7 @@ public final class Main extends Application {
         MainWindow root=new MainWindow(context);
         SettingsUiEnhancer.install(root, context.config(), getHostServices()::showDocument);
         SubtitleOverlayEnhancer.install(root, context.config());
+        PlayerControlsEnhancer.install(root);
         CatalogUiEnhancer.install(root, context);
         StackPane sceneRoot=new StackPane(root);
         Scene scene=new Scene(sceneRoot,1500,900,Color.web("#0A0A0F"));
@@ -129,8 +131,6 @@ public final class Main extends Application {
                     notification.setFailure(errorCause(error));
                     return;
                 }
-                // The updater is now running and waiting for this PID. Closing Aokuvue releases
-                // the native app-image files before the updater swaps in the new build.
                 stage.close();
                 Platform.exit();
             }));
