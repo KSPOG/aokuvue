@@ -58,11 +58,21 @@ public final class AppConfig {
         putIfMissing("player.subtitleSize", "20");
         putIfMissing("ui.startTab", "HOME");
         putIfMissing("ui.compactCards", "false");
+        putIfMissing("support.eur2Url", "");
+        putIfMissing("support.eur5Url", "");
+        putIfMissing("support.eur10Url", "");
+        putIfMissing("support.eur25Url", "");
+        putIfMissing("support.customUrl", "");
         properties.setProperty("runtime.schemaVersion", "2");
     }
 
     private void applyEnvironment() {
         env("anilist.accessToken", "KSPANI_ANILIST_ACCESS_TOKEN");
+        env("support.eur2Url", "AOKVUE_SUPPORT_EUR_2_URL");
+        env("support.eur5Url", "AOKVUE_SUPPORT_EUR_5_URL");
+        env("support.eur10Url", "AOKVUE_SUPPORT_EUR_10_URL");
+        env("support.eur25Url", "AOKVUE_SUPPORT_EUR_25_URL");
+        env("support.customUrl", "AOKVUE_SUPPORT_CUSTOM_URL");
     }
 
     private void removeRetiredSourceSettings() {
