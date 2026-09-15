@@ -56,6 +56,9 @@ public final class AppConfig {
         putIfMissing("player.autoNextEpisode", "true");
         putIfMissing("player.defaultSpeed", "1.0");
         putIfMissing("player.subtitleSize", "20");
+        putIfMissing("player.subtitleDraggable", "false");
+        putIfMissing("player.subtitleOffsetX", "0");
+        putIfMissing("player.subtitleOffsetY", "0");
         putIfMissing("ui.startTab", "HOME");
         putIfMissing("ui.compactCards", "false");
         putIfMissing("support.eur2Url", "");
