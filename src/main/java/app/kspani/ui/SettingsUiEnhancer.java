@@ -193,14 +193,14 @@ public final class SettingsUiEnhancer {
         Label kicker = new Label("AOKUVUE / SUPPORT");
         kicker.getStyleClass().add("section-kicker");
 
-        Label title = new Label("Support Aokvue");
+        Label title = new Label("Support Aokuvue");
         title.getStyleClass().add("section-title");
 
         Label comingSoon = new Label("Donation support is coming soon");
         comingSoon.getStyleClass().add("fact-value");
 
         Label detail = new Label(
-                "We're preparing a simple and secure way for viewers to support Aokvue's continued "
+                "We're preparing a simple and secure way for viewers to support Aokuvue's continued "
                         + "development, maintenance, and future features. More information will be available soon.");
         detail.setWrapText(true);
         detail.getStyleClass().add("source-status");
