@@ -16,6 +16,8 @@ import java.util.function.Consumer;
  * enforce watch threshold, and update AniList independently from source matching.
  */
 public final class PlayerController implements AutoCloseable {
+    private static final double END_FALLBACK_WINDOW_MS = 750.0;
+
     private final AppConfig config;
     private PlayerSettings settings;
     private final PlaybackProgressRepository progress;
@@ -26,6 +28,7 @@ public final class PlayerController implements AutoCloseable {
     private HttpMediaRelay mediaRelay;
     private PlayerSession session;
     private boolean watchedSent;
+    private boolean completionHandled;
     private long lastSavedAt;
     private Consumer<String> status = ignored -> {};
     private Runnable endOfMediaAction = () -> {};
@@ -50,6 +53,8 @@ public final class PlayerController implements AutoCloseable {
     public MediaPlayer load(PlayerSession newSession) {
         disposeCurrent();
         this.session = newSession;
+        this.completionHandled = false;
+        this.lastSavedAt = 0L;
         PlaybackSource source = newSession.playback().selectedVideo();
         status.accept("Opening Episode " + newSession.playback().episode().number() + "…");
 
@@ -113,18 +118,54 @@ public final class PlayerController implements AutoCloseable {
         player.setOnStalled(() -> status.accept("Buffering Episode " + newSession.playback().episode().number() + "…"));
         player.setOnHalted(() -> status.accept("Playback halted for Episode " + newSession.playback().episode().number() + "."));
 
-        player.currentTimeProperty().addListener((obs, oldValue, now) -> onProgress(now.toMillis(), player.getTotalDuration().toMillis()));
-        player.setOnEndOfMedia(() -> {
-            onProgress(player.getTotalDuration().toMillis(), player.getTotalDuration().toMillis());
-            status.accept("Episode " + newSession.playback().episode().number() + " finished.");
-            endOfMediaAction.run();
+        player.currentTimeProperty().addListener((obs, oldValue, now) -> {
+            double position = now.toMillis();
+            double duration = player.getTotalDuration().toMillis();
+            onProgress(position, duration);
+            detectNaturalCompletion(player, newSession, position, duration);
         });
+        player.setOnEndOfMedia(() -> completePlayback(player, newSession));
         player.setOnError(() -> {
             var error = player.getError();
             System.err.println("[Aokuvue][MediaPlayer] " + (error == null ? "Unknown" : error.getType() + ": " + error.getMessage()));
             status.accept("Player error: " + (error == null ? "Unknown" : error.getMessage()));
         });
         return player;
+    }
+
+    /**
+     * Some provider/relayed streams never emit JavaFX's OnEndOfMedia callback even though playback
+     * reaches the reported duration. Treat reaching the final fraction of a finite stream as a
+     * fallback completion signal. completePlayback() is guarded, so the native callback and this
+     * fallback can safely race without advancing twice.
+     */
+    private void detectNaturalCompletion(
+            MediaPlayer player,
+            PlayerSession completedSession,
+            double position,
+            double duration
+    ) {
+        if (completionHandled || player != mediaPlayer || session != completedSession) return;
+        if (!Double.isFinite(position) || !Double.isFinite(duration) || duration <= 0.0) return;
+        if (player.getStatus() != MediaPlayer.Status.PLAYING) return;
+
+        double remaining = duration - position;
+        if (remaining <= END_FALLBACK_WINDOW_MS && position / duration >= 0.999) {
+            completePlayback(player, completedSession);
+        }
+    }
+
+    private void completePlayback(MediaPlayer player, PlayerSession completedSession) {
+        if (completionHandled || player != mediaPlayer || session != completedSession) return;
+        completionHandled = true;
+
+        double duration = player.getTotalDuration().toMillis();
+        if (Double.isFinite(duration) && duration > 0.0) {
+            onProgress(duration, duration);
+        }
+
+        status.accept("Episode " + completedSession.playback().episode().number() + " finished.");
+        endOfMediaAction.run();
     }
 
     private void onProgress(double position, double duration) {
