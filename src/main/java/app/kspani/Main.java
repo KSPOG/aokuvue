@@ -51,7 +51,7 @@ public final class Main extends Application {
     private void initializeMainWindow(Stage stage,SplashHandle splash,long splashStarted) {
         context=AppContext.create();
         MainWindow root=new MainWindow(context);
-        SettingsUiEnhancer.install(root);
+        SettingsUiEnhancer.install(root, context.config(), getHostServices()::showDocument);
         CatalogUiEnhancer.install(root, context);
         StackPane sceneRoot=new StackPane(root);
         Scene scene=new Scene(sceneRoot,1500,900,Color.web("#0A0A0F"));
