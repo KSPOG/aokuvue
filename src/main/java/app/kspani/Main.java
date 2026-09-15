@@ -6,6 +6,7 @@ import app.kspani.app.DiagnosticLog;
 import app.kspani.ui.CatalogUiEnhancer;
 import app.kspani.ui.MainWindow;
 import app.kspani.ui.SettingsUiEnhancer;
+import app.kspani.ui.SubtitleOverlayEnhancer;
 import app.kspani.ui.UpdateNotification;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -51,6 +52,7 @@ public final class Main extends Application {
         context=AppContext.create();
         MainWindow root=new MainWindow(context);
         SettingsUiEnhancer.install(root, context.config(), getHostServices()::showDocument);
+        SubtitleOverlayEnhancer.install(root, context.config());
         CatalogUiEnhancer.install(root, context);
         StackPane sceneRoot=new StackPane(root);
         Scene scene=new Scene(sceneRoot,1500,900,Color.web("#0A0A0F"));
