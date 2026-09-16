@@ -1662,8 +1662,22 @@ public final class MainWindow extends BorderPane {
                     ProviderSite site = resolved.get(i);
                     Label chip = new Label("#"+site.rank()+"  "+site.name()+(site.multiSource()?" · MULT":"")+" · directory");
                     chip.getStyleClass().add("provider-chip");
-                    chip.setTooltip(new Tooltip(site.baseUri().toString()));
-                    providers.getChildren().add(chip);
+                    Circle sourceDot = new Circle(4);
+                    sourceDot.getStyleClass().addAll("source-connection-dot", "connection-checking");
+                    Tooltip sourceTooltip = new Tooltip(site.name()+" · Checking connection…");
+                    StackPane sourceIndicator = new StackPane(sourceDot);
+                    sourceIndicator.getStyleClass().add("source-connection-indicator");
+                    Tooltip.install(sourceIndicator, sourceTooltip);
+                    sourceIndicator.setOnMouseEntered(e -> sourceTooltip.show(sourceIndicator,
+                            sourceIndicator.localToScreen(sourceIndicator.getBoundsInLocal()).getMinX() - 45,
+                            sourceIndicator.localToScreen(sourceIndicator.getBoundsInLocal()).getMaxY() + 7));
+                    sourceIndicator.setOnMouseExited(e -> sourceTooltip.hide());
+                    HBox sourceChip = new HBox(7, sourceDot, chip);
+                    sourceChip.setAlignment(Pos.CENTER_LEFT);
+                    sourceChip.getStyleClass().add("provider-chip");
+                    Tooltip.install(sourceChip, sourceTooltip);
+                    providers.getChildren().add(sourceChip);
+                    checkSourceConnection(site, sourceDot, sourceTooltip);
                 }
                 if(error!=null) status.setText("Provider directory refresh used the built-in fallback list.");
             }));
@@ -1671,6 +1685,41 @@ public final class MainWindow extends BorderPane {
         refresh.setOnAction(e -> load.run());
         Platform.runLater(load);
         return card;
+    }
+
+    private void checkSourceConnection(ProviderSite site, Circle dot, Tooltip tooltip) {
+        CompletableFuture.supplyAsync(() -> {
+            long started = System.nanoTime();
+            try {
+                HttpURLConnection connection = (HttpURLConnection) site.baseUri().toURL().openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(4000);
+                connection.setReadTimeout(4000);
+                connection.setInstanceFollowRedirects(true);
+                connection.setRequestProperty("User-Agent", "Aokuvue/1.0");
+                int code = connection.getResponseCode();
+                connection.disconnect();
+                long latencyMs = Math.max(1L, (System.nanoTime() - started) / 1_000_000L);
+                return new long[]{code >= 200 && code < 500 ? 1 : 0, latencyMs, code};
+            } catch (Exception ignored) {
+                return new long[]{0, -1, -1};
+            }
+        }).thenAccept(result -> Platform.runLater(() -> {
+            dot.getStyleClass().removeAll("connection-checking", "connection-perfect", "connection-medium", "connection-bad");
+            if (result[0] == 0) {
+                dot.getStyleClass().add("connection-bad");
+                tooltip.setText(site.name()+" · Bad · unreachable");
+            } else if (result[1] <= 300) {
+                dot.getStyleClass().add("connection-perfect");
+                tooltip.setText(site.name()+" · Perfect · "+result[1]+" ms · HTTP "+result[2]);
+            } else if (result[1] <= 900) {
+                dot.getStyleClass().add("connection-medium");
+                tooltip.setText(site.name()+" · Medium · "+result[1]+" ms · HTTP "+result[2]);
+            } else {
+                dot.getStyleClass().add("connection-bad");
+                tooltip.setText(site.name()+" · Bad · "+result[1]+" ms · HTTP "+result[2]);
+            }
+        }));
     }
 
     private void runHentaiSearch() {
