@@ -4,7 +4,7 @@ package app.kspani.app;
 public final class AppVersion {
     private static final String DEVELOPMENT_FALLBACK = "1.5.26";
     private static final String RELEASE_CHANNEL = "Beta";
-    private static final String CHANNEL_VERSION = "0.0.4";
+    private static final String CHANNEL_VERSION = "0.0.5";
 
     private AppVersion() {}
 
