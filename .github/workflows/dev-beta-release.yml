@@ -1,12 +1,6 @@
-name: Dev Beta Release
+name: Publish Versioned Beta (Manual)
 
 on:
-  push:
-    branches: [ dev ]
-    paths:
-      - 'src/main/java/app/kspani/app/AppVersion.java'
-      - 'src/main/java/app/kspani/ui/SettingsUiEnhancer.java'
-      - '.github/workflows/dev-beta-release.yml'
   workflow_dispatch:
 
 permissions:
@@ -23,6 +17,8 @@ jobs:
     steps:
       - name: Checkout dev
         uses: actions/checkout@v4
+        with:
+          ref: dev
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -77,18 +73,7 @@ jobs:
           $notes = @"
           # Aokuvue Beta - $env:BETA_VERSION
 
-          Pre-release build from the `dev` branch for testing before promotion to `main`.
-
-          ## Included in this beta
-          - AniList AiringSchedule-backed Calendar with year and month selection.
-          - Upcoming episode/release times rendered in the user's local system timezone.
-          - Dedicated Genres page populated from AniList GenreCollection.
-          - Genre category cards instead of redirecting Genres to Explore.
-          - Genres dropdown removed from Explore.
-          - Paginated AniList catalogs for Explore, Manga, Hentai, Movies, Originals and Curated.
-          - Automatic additional-page loading near the end of the catalog plus a manual Load more fallback.
-          - Settings > Appearance now identifies this channel as **Beta - $env:BETA_VERSION**.
-          - Native in-app MangaDex reader with chapter/page navigation and saved reading position.
+          Manually published pre-release from the `dev` branch for testing before promotion to `main`.
 
           This is a development prerelease and is not the public stable `main` release.
           "@
