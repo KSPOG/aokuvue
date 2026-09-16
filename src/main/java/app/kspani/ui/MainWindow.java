@@ -24,11 +24,13 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
@@ -513,7 +515,7 @@ public final class MainWindow extends BorderPane {
 
     private Node spotlightRow(AniMedia media, int index) {
         String artUrl=media.bannerImage()==null||media.bannerImage().isBlank()?media.coverImage():media.bannerImage();
-        ImageView art = image(artUrl, 150, 72); art.setPreserveRatio(false);
+        ImageView art = coverImage(artUrl, 150, 72);
         art.getStyleClass().add("spotlight-thumb");
         Label number = new Label(String.format("%02d", index));
         number.getStyleClass().add("spotlight-number");
@@ -560,8 +562,7 @@ public final class MainWindow extends BorderPane {
 
     private Node continueCard(AniMedia media, PlaybackProgressRepository.ContinueEntry entry) {
         String artUrl = media.bannerImage() == null || media.bannerImage().isBlank() ? media.coverImage() : media.bannerImage();
-        ImageView art = image(artUrl, 250, 122);
-        art.setPreserveRatio(false);
+        ImageView art = coverImage(artUrl, 250, 122);
         Region shade = new Region(); shade.getStyleClass().add("continue-shade");
         Label episode = new Label("EPISODE " + entry.episodeNumber()); episode.getStyleClass().add("continue-episode");
         Label title = new Label(media.title()); title.setWrapText(true); title.getStyleClass().add("continue-title");
@@ -1260,9 +1261,9 @@ public final class MainWindow extends BorderPane {
         Button full=new Button("⛶");full.setTooltip(new Tooltip("Fullscreen"));
         rewind.setOnAction(e->app.player().seekRelative(-app.player().settings().seekSeconds()));forward.setOnAction(e->app.player().seekRelative(app.player().settings().seekSeconds()));play.setOnAction(e->app.player().playPause());
         prev.setOnAction(e->playAdjacent(session,-1));next.setOnAction(e->playAdjacent(session,1));
-        quality.setOnAction(e->{int idx=quality.getSelectionModel().getSelectedIndex();if(idx<0||idx>=qualityVideos.size()||idx==session.playback().selectedVideoIndex())return;app.episodes().setVideoIndex(session.media(),idx);PlaybackResolution changed=new PlaybackResolution(session.playback().source(),session.playback().series(),session.playback().episode(),session.playback().resolved(),qualityVideos.get(idx),idx,session.playback().selectedSubtitleIndex());showPlayer(new PlayerSession(session.media(),session.episodeLoad(),changed));});
+        quality.setOnAction(e->{int idx=quality.getSelectionModel().getSelectedIndex();if(idx<0||idx>=qualityVideos.size()||idx==session.playback().selectedVideoIndex())return;app.episodes().setPreferredQuality(session.media(),qualityVideos.get(idx).quality(),idx);PlaybackResolution changed=new PlaybackResolution(session.playback().source(),session.playback().series(),session.playback().episode(),session.playback().resolved(),qualityVideos.get(idx),idx,session.playback().selectedSubtitleIndex());showPlayer(new PlayerSession(session.media(),session.episodeLoad(),changed));});
         HBox timeline=new HBox(12,time,seek);timeline.setAlignment(Pos.CENTER_LEFT);HBox.setHgrow(seek,Priority.ALWAYS);timeline.getStyleClass().add("player-timeline");
-        String posterUrl=session.media().bannerImage()==null||session.media().bannerImage().isBlank()?session.media().coverImage():session.media().bannerImage();ImageView thumb=image(posterUrl,145,88);thumb.setPreserveRatio(false);thumb.getStyleClass().add("player-cover");
+        String posterUrl=session.media().bannerImage()==null||session.media().bannerImage().isBlank()?session.media().coverImage():session.media().bannerImage();ImageView thumb=coverImage(posterUrl,145,88);thumb.getStyleClass().add("player-cover");
         Label eyebrow=new Label("A O K U V U E   S E L E C T I O N");eyebrow.getStyleClass().add("section-kicker");Label mediaTitle=new Label(session.media().title());mediaTitle.getStyleClass().add("player-media-title");Label episodeLabel=new Label("Episode "+session.playback().episode().number()+"  ·  "+safe(session.playback().episode().title()));episodeLabel.getStyleClass().add("player-meta");VBox mediaCopy=new VBox(4,eyebrow,mediaTitle,episodeLabel);mediaCopy.setPrefWidth(300);
         HBox transport=new HBox(8,prev,rewind,play,forward,next);transport.setAlignment(Pos.CENTER);transport.setMaxWidth(Region.USE_PREF_SIZE);
         HBox selectors=new HBox(8,new Label("CC"),subtitles,quality,new Label("Speed"),speed,new Label("Vol"),volume,full);selectors.setAlignment(Pos.CENTER_RIGHT);selectors.setMaxWidth(Region.USE_PREF_SIZE);
@@ -1799,6 +1800,25 @@ public final class MainWindow extends BorderPane {
     private static Button icon(String text,String tooltip){Button b=new Button(text);b.getStyleClass().add("icon-button");b.setTooltip(new Tooltip(tooltip));return b;}
     private ScrollPane scroll(Node n){ScrollPane s=new ScrollPane(n);s.setFitToWidth(true);s.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);s.getStyleClass().add("page-scroll");return s;}
     private static ImageView image(String url,double w,double h){ImageView v=new ImageView();v.setFitWidth(w);v.setFitHeight(h);v.setPreserveRatio(true);v.setSmooth(true);if(url!=null&&!url.isBlank())v.setImage(new Image(url,w,h,true,true,true));return v;}
+    private static ImageView coverImage(String url,double w,double h){
+        ImageView v=new ImageView();
+        v.setFitWidth(w);v.setFitHeight(h);v.setPreserveRatio(true);v.setSmooth(true);
+        Rectangle clip=new Rectangle(w,h);clip.setArcWidth(6);clip.setArcHeight(6);v.setClip(clip);
+        if(url!=null&&!url.isBlank()){
+            Image img=new Image(url,true);v.setImage(img);
+            v.setViewport(null);
+            img.widthProperty().addListener((o,a,b)->applyCoverViewport(v,img,w,h));
+            img.heightProperty().addListener((o,a,b)->applyCoverViewport(v,img,w,h));
+            if(img.getWidth()>0&&img.getHeight()>0)applyCoverViewport(v,img,w,h);
+        }
+        return v;
+    }
+    private static void applyCoverViewport(ImageView v,Image img,double w,double h){
+        double iw=img.getWidth(),ih=img.getHeight();if(iw<=0||ih<=0)return;
+        double target=w/h,image=iw/ih;
+        if(image>target){double vw=ih*target;v.setViewport(new javafx.geometry.Rectangle2D((iw-vw)/2,0,vw,ih));}
+        else {double vh=iw/target;v.setViewport(new javafx.geometry.Rectangle2D(0,(ih-vh)/2,iw,vh));}
+    }
     private Node loadingCard(String text){VBox v=new VBox(12,new ProgressIndicator(),new Label(text));v.setAlignment(Pos.CENTER);v.setMinHeight(260);v.getStyleClass().add("empty-state");return v;}
     private Node errorCard(String text){Label l=new Label(text);l.setWrapText(true);VBox v=new VBox(l);v.setPadding(new Insets(30));v.getStyleClass().add("empty-state");return v;}
     private static String trim(String s,int max){if(s==null)return"";return s.length()<=max?s:s.substring(0,Math.max(0,max-1)).trim()+"…";}
