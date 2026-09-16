@@ -90,9 +90,10 @@ public final class PlayerController implements AutoCloseable {
         this.mediaPlayer = player;
         player.setRate(settings.defaultSpeed());
 
-        var saved = progress.load(
+        // Resume belongs to the episode, not a particular provider. If a provider changed between
+        // sessions, keep the user's most recently saved position instead of starting over.
+        var saved = progress.loadLatestForEpisode(
                 newSession.media().id(),
-                newSession.playback().source().descriptor().id(),
                 newSession.playback().episode().number()
         );
         watchedSent = saved.watched();
