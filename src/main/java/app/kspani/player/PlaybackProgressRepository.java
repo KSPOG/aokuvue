@@ -37,6 +37,31 @@ public final class PlaybackProgressRepository {
         }
     }
 
+    /**
+     * Loads the most recently saved progress for an episode regardless of which playback provider
+     * produced it. Provider URLs and servers can change between sessions, but the user's position in
+     * the episode should still survive that switch.
+     */
+    public Progress loadLatestForEpisode(int mediaId, String episodeNumber) {
+        String sql = """
+                SELECT position_ms,duration_ms,watched
+                FROM playback_progress
+                WHERE media_id=? AND episode_number=?
+                ORDER BY updated_at DESC
+                LIMIT 1
+                """;
+        try (PreparedStatement ps = db.connection().prepareStatement(sql)) {
+            ps.setInt(1, mediaId);
+            ps.setString(2, episodeNumber);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return new Progress(0, 0, false);
+                return new Progress(rs.getLong(1), rs.getLong(2), rs.getInt(3) != 0);
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to load latest episode progress", e);
+        }
+    }
+
     public void save(int mediaId, String sourceId, String episodeNumber, long positionMs, long durationMs, boolean watched) {
         String sql = """
                 INSERT INTO playback_progress(media_id,source_id,episode_number,position_ms,duration_ms,watched,updated_at)
