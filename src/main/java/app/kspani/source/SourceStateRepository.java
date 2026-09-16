@@ -75,6 +75,55 @@ public final class SourceStateRepository {
         }
     }
 
+    public void savePreferredQuality(int mediaId, Integer quality) {
+        String sql = """
+                INSERT INTO source_series_preference(media_id,preferred_quality,updated_at)
+                VALUES(?,?,?)
+                ON CONFLICT(media_id) DO UPDATE SET
+                  preferred_quality=excluded.preferred_quality,
+                  updated_at=excluded.updated_at
+                """;
+        try {
+            ensureSeriesPreferenceTable();
+            try (PreparedStatement ps = db.connection().prepareStatement(sql)) {
+                ps.setInt(1, mediaId);
+                if (quality == null) ps.setObject(2, null); else ps.setInt(2, quality);
+                ps.setLong(3, Instant.now().getEpochSecond());
+                ps.executeUpdate();
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to save series playback quality", e);
+        }
+    }
+
+    public Optional<Integer> loadPreferredQuality(int mediaId) {
+        try {
+            ensureSeriesPreferenceTable();
+            try (PreparedStatement ps = db.connection().prepareStatement(
+                    "SELECT preferred_quality FROM source_series_preference WHERE media_id=?")) {
+                ps.setInt(1, mediaId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next() || rs.getObject("preferred_quality") == null) return Optional.empty();
+                    return Optional.of(rs.getInt("preferred_quality"));
+                }
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to load series playback quality", e);
+        }
+    }
+
+    private void ensureSeriesPreferenceTable() throws Exception {
+        try (var statement = db.connection().createStatement()) {
+            statement.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS source_series_preference(
+                      media_id INTEGER PRIMARY KEY,
+                      preferred_quality INTEGER,
+                      updated_at INTEGER NOT NULL
+                    )
+                    """);
+        }
+    }
+
     public Optional<SourceSeries> loadSeriesMatch(int mediaId, String sourceId) {
         String sql = "SELECT * FROM source_series_match WHERE media_id=? AND source_id=?";
         try (PreparedStatement ps = db.connection().prepareStatement(sql)) {
