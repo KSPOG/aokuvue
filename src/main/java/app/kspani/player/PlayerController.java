@@ -101,7 +101,8 @@ public final class PlayerController implements AutoCloseable {
         player.setOnReady(() -> {
             long duration = (long) player.getTotalDuration().toMillis();
             boolean resumed = false;
-            if (saved.positionMs() > 0 && saved.positionMs() < duration - 15_000) {
+            // Seek to the actual saved position unless playback was effectively completed.
+            if (saved.positionMs() > 0 && saved.positionMs() < duration - 1_000) {
                 player.seek(Duration.millis(saved.positionMs()));
                 resumed = true;
             }
