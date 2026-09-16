@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public final class PlaybackProgressRepository {
     public record Progress(long positionMs, long durationMs, boolean watched) {}
@@ -59,6 +60,28 @@ public final class PlaybackProgressRepository {
             }
         } catch (Exception e) {
             throw new IllegalStateException("Failed to load latest episode progress", e);
+        }
+    }
+
+    /** Returns the last episode touched for one series, independent of provider. */
+    public Optional<ContinueEntry> latestForMedia(int mediaId) {
+        String sql = """
+                SELECT media_id,source_id,episode_number,position_ms,duration_ms,watched,updated_at
+                FROM playback_progress
+                WHERE media_id=?
+                ORDER BY updated_at DESC, rowid DESC
+                LIMIT 1
+                """;
+        try (PreparedStatement ps = db.connection().prepareStatement(sql)) {
+            ps.setInt(1, mediaId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(new ContinueEntry(
+                        rs.getInt(1), rs.getString(2), rs.getString(3),
+                        rs.getLong(4), rs.getLong(5), rs.getInt(6) != 0, rs.getLong(7)));
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to load latest series progress", e);
         }
     }
 
