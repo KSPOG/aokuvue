@@ -129,3 +129,28 @@
 /* Dark native surfaces */
 .scroll-bar:horizontal, .scroll-bar:vertical, .scroll-bar .track { -fx-background-color: transparent; }.scroll-bar .thumb { -fx-background-color: #363047; -fx-background-radius: 8px; }.scroll-bar .thumb:hover { -fx-background-color: -aok-royal-violet; }
 .tooltip, .context-menu { -fx-background-color: -aok-midnight; -fx-border-color: #423b58; -fx-text-fill: -aok-pale; }.menu-item .label { -fx-text-fill: -aok-pale; }.menu-item:focused { -fx-background-color: -aok-deep-violet; }.dialog-pane { -fx-background-color: -aok-obsidian; -fx-border-color: #423b58; }.dialog-pane .header-panel { -fx-background-color: -aok-midnight; }.dialog-pane .label { -fx-text-fill: -aok-pale; }.progress-indicator { -fx-progress-color: -aok-luminous; }
+
+
+/* Top-bar connection quality indicator */
+.connection-indicator {
+    -fx-alignment: center;
+}
+.connection-dot {
+    -fx-stroke: rgba(255,255,255,0.18);
+    -fx-stroke-width: 1;
+}
+.connection-checking {
+    -fx-fill: #7b7488;
+}
+.connection-perfect {
+    -fx-fill: #35e879;
+    -fx-effect: dropshadow(gaussian, rgba(53,232,121,0.62), 8, 0.35, 0, 0);
+}
+.connection-medium {
+    -fx-fill: #ffad42;
+    -fx-effect: dropshadow(gaussian, rgba(255,173,66,0.58), 8, 0.35, 0, 0);
+}
+.connection-bad {
+    -fx-fill: #ff4d61;
+    -fx-effect: dropshadow(gaussian, rgba(255,77,97,0.58), 8, 0.35, 0, 0);
+}
