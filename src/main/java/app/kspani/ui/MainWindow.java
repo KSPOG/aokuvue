@@ -11,6 +11,8 @@ import app.kspani.player.SubtitleCue;
 import app.kspani.player.SubtitleParser;
 import app.kspani.source.*;
 import javafx.animation.PauseTransition;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
@@ -38,6 +40,8 @@ import javafx.util.Duration;
 
 import java.awt.Desktop;
 import java.net.URI;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -81,6 +85,9 @@ public final class MainWindow extends BorderPane {
     private final TextField search = new TextField();
     private final Label accountName = new Label("Login");
     private final ImageView accountAvatar = new ImageView();
+    private final Circle connectionDot = new Circle(5);
+    private final Tooltip connectionTooltip = new Tooltip("Checking connection…");
+    private Timeline connectionMonitor;
     private Node applicationTopBar;
     private Node applicationStatusBar;
     private final BorderPane applicationShell = new BorderPane();
@@ -166,6 +173,7 @@ public final class MainWindow extends BorderPane {
         show(startPage);
         loadHome();
         restoreViewer();
+        startConnectionMonitor();
     }
 
     /** Completes after every initial Home request has reached a terminal state. */
@@ -241,6 +249,11 @@ public final class MainWindow extends BorderPane {
         searchBox.setMaxWidth(620);
         Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
         Label bell = new Label("♧"); bell.getStyleClass().add("top-icon");
+        StackPane connectionIndicator = new StackPane(connectionDot);
+        connectionIndicator.getStyleClass().add("connection-indicator");
+        connectionIndicator.setTooltip(connectionTooltip);
+        connectionIndicator.setMinSize(18,18);
+        connectionIndicator.setPrefSize(18,18);
         accountAvatar.setFitWidth(34); accountAvatar.setFitHeight(34); accountAvatar.setPreserveRatio(true);
         StackPane avatar = new StackPane(accountAvatar); avatar.getStyleClass().add("top-avatar");
         Label accountTier = new Label("AniList"); accountTier.getStyleClass().add("account-tier");
@@ -252,7 +265,7 @@ public final class MainWindow extends BorderPane {
         minimize.setOnAction(e->{Stage stage=windowStage();if(stage!=null)stage.setIconified(true);});
         maximize.setOnAction(e->{Stage stage=windowStage();if(stage!=null){stage.setMaximized(!stage.isMaximized());maximize.setText(stage.isMaximized()?"❐":"□");}});
         close.setOnAction(e->{Stage stage=windowStage();if(stage!=null)stage.close();});
-        HBox top = new HBox(14, searchBox, spacer, bell, account, chromeDivider, minimize,maximize,close);
+        HBox top = new HBox(14, searchBox, spacer, bell, connectionIndicator, account, chromeDivider, minimize,maximize,close);
         top.setAlignment(Pos.CENTER_LEFT);
         top.setPadding(new Insets(8,0,8,26));
         top.getStyleClass().add("top-bar");
@@ -261,6 +274,48 @@ public final class MainWindow extends BorderPane {
         top.setOnMouseDragged(e->{Stage stage=windowStage();if(e.getButton()==MouseButton.PRIMARY&&stage!=null&&!stage.isMaximized()&&!stage.isFullScreen()){stage.setX(e.getScreenX()-drag[0]);stage.setY(e.getScreenY()-drag[1]);}});
         top.setOnMouseClicked(e->{if(e.getButton()==MouseButton.PRIMARY&&e.getClickCount()==2){Stage stage=windowStage();if(stage!=null){stage.setMaximized(!stage.isMaximized());maximize.setText(stage.isMaximized()?"❐":"□");}}});
         return top;
+    }
+
+    private void startConnectionMonitor() {
+        connectionDot.getStyleClass().setAll("connection-dot", "connection-checking");
+        checkConnectionQuality();
+        connectionMonitor = new Timeline(new KeyFrame(Duration.seconds(10), e -> checkConnectionQuality()));
+        connectionMonitor.setCycleCount(Timeline.INDEFINITE);
+        connectionMonitor.play();
+    }
+
+    private void checkConnectionQuality() {
+        CompletableFuture.supplyAsync(() -> {
+            long started = System.nanoTime();
+            try {
+                HttpURLConnection connection = (HttpURLConnection) new URL("https://graphql.anilist.co").openConnection();
+                connection.setRequestMethod("HEAD");
+                connection.setConnectTimeout(3500);
+                connection.setReadTimeout(3500);
+                connection.setUseCaches(false);
+                int code = connection.getResponseCode();
+                connection.disconnect();
+                long latencyMs = Math.max(1L, (System.nanoTime() - started) / 1_000_000L);
+                return new long[]{code >= 200 && code < 500 ? 1 : 0, latencyMs};
+            } catch (Exception ignored) {
+                return new long[]{0, -1};
+            }
+        }).thenAccept(result -> Platform.runLater(() -> {
+            connectionDot.getStyleClass().removeAll("connection-checking", "connection-perfect", "connection-medium", "connection-bad");
+            if (result[0] == 0) {
+                connectionDot.getStyleClass().add("connection-bad");
+                connectionTooltip.setText("Connection: Bad · unreachable");
+            } else if (result[1] <= 180) {
+                connectionDot.getStyleClass().add("connection-perfect");
+                connectionTooltip.setText("Connection: Perfect · " + result[1] + " ms");
+            } else if (result[1] <= 500) {
+                connectionDot.getStyleClass().add("connection-medium");
+                connectionTooltip.setText("Connection: Medium · " + result[1] + " ms");
+            } else {
+                connectionDot.getStyleClass().add("connection-bad");
+                connectionTooltip.setText("Connection: Bad · " + result[1] + " ms");
+            }
+        }));
     }
 
     private Node buildSidebar() {
