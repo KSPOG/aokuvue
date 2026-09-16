@@ -4,6 +4,7 @@ import app.kspani.app.AppContext;
 import app.kspani.app.AppUpdateService;
 import app.kspani.app.DiagnosticLog;
 import app.kspani.ui.CatalogUiEnhancer;
+import app.kspani.ui.LibraryUiEnhancer;
 import app.kspani.ui.MainWindow;
 import app.kspani.ui.PlayerControlsEnhancer;
 import app.kspani.ui.SettingsUiEnhancer;
@@ -56,6 +57,7 @@ public final class Main extends Application {
         SubtitleOverlayEnhancer.install(root, context.config());
         PlayerControlsEnhancer.install(root);
         CatalogUiEnhancer.install(root, context);
+        LibraryUiEnhancer.install(root, context);
         StackPane sceneRoot=new StackPane(root);
         Scene scene=new Scene(sceneRoot,1500,900,Color.web("#0A0A0F"));
         var css = Main.class.getResource("/styles/aokuvue.css");
