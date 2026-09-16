@@ -252,6 +252,10 @@ public final class MainWindow extends BorderPane {
         StackPane connectionIndicator = new StackPane(connectionDot);
         connectionIndicator.getStyleClass().add("connection-indicator");
         Tooltip.install(connectionIndicator, connectionTooltip);
+        connectionIndicator.setOnMouseEntered(e -> connectionTooltip.show(connectionIndicator,
+                connectionIndicator.localToScreen(connectionIndicator.getBoundsInLocal()).getMinX() - 45,
+                connectionIndicator.localToScreen(connectionIndicator.getBoundsInLocal()).getMaxY() + 7));
+        connectionIndicator.setOnMouseExited(e -> connectionTooltip.hide());
         connectionIndicator.setMinSize(18,18);
         connectionIndicator.setPrefSize(18,18);
         accountAvatar.setFitWidth(34); accountAvatar.setFitHeight(34); accountAvatar.setPreserveRatio(true);
