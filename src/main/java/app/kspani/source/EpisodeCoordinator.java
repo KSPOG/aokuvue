@@ -450,6 +450,13 @@ public final class EpisodeCoordinator {
         return updated;
     }
 
+    public SourceSelection setPreferredQuality(AniMedia media, Integer quality, int fallbackIndex) {
+        SourceSelection updated = selectionFor(media).withVideoIndex(fallbackIndex);
+        state.saveSelection(updated);
+        state.savePreferredQuality(media.id(), quality);
+        return updated;
+    }
+
     public SourceSelection setSubtitleIndex(AniMedia media, Integer subtitleIndex) {
         SourceSelection updated = selectionFor(media).withSubtitleIndex(subtitleIndex);
         state.saveSelection(updated);
@@ -478,7 +485,7 @@ public final class EpisodeCoordinator {
             throw new IllegalStateException("The selected server returned no playable media.");
         }
         List<PlaybackSource> videos = EpisodeLanguageSelector.rankVideos(resolved.videos(), selection.languagePreference());
-        int index = Math.max(0, Math.min(selection.videoIndex(), videos.size() - 1));
+        int index = preferredQualityIndex(videos, state.loadPreferredQuality(media.id()).orElse(null), selection.videoIndex());
         PlaybackSource selectedVideo = videos.get(index);
         Integer subtitleIndex = selection.subtitleIndex();
         if (selection.languagePreference() == PlaybackLanguage.ENGLISH_SUB) {
@@ -493,6 +500,25 @@ public final class EpisodeCoordinator {
                 source, series, episode, resolved,
                 selectedVideo, index, subtitleIndex
         );
+    }
+
+    private static int preferredQualityIndex(List<PlaybackSource> videos, Integer preferredQuality, int fallbackIndex) {
+        if (videos == null || videos.isEmpty()) return 0;
+        if (preferredQuality != null) {
+            int exact = -1;
+            int closest = -1;
+            int distance = Integer.MAX_VALUE;
+            for (int i=0;i<videos.size();i++) {
+                Integer q=videos.get(i).quality();
+                if(q==null)continue;
+                if(q.equals(preferredQuality)){exact=i;break;}
+                int d=Math.abs(q-preferredQuality);
+                if(d<distance){distance=d;closest=i;}
+            }
+            if(exact>=0)return exact;
+            if(closest>=0)return closest;
+        }
+        return Math.max(0,Math.min(fallbackIndex,videos.size()-1));
     }
 
     private static VideoServer chooseServer(List<VideoServer> servers, String savedName) {
