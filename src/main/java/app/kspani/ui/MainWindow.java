@@ -501,7 +501,7 @@ public final class MainWindow extends BorderPane {
 
     private Node categoryTile(String name, AniMedia media) {
         String artUrl = media.bannerImage()==null||media.bannerImage().isBlank()?media.coverImage():media.bannerImage();
-        ImageView art=image(artUrl,190,78); art.setPreserveRatio(false);
+        ImageView art=coverImage(artUrl,190,78);
         Region shade=new Region(); shade.getStyleClass().add("category-shade");
         Label title=new Label(name); title.getStyleClass().add("category-title");
         Label line=new Label(switch(name){case "New Releases"->"FRESH WORLDS";case "Fantasy"->"BEYOND REALITY";case "Romance"->"HEARTS ECHO";default->"STORIES BEYOND";});
@@ -737,7 +737,7 @@ public final class MainWindow extends BorderPane {
     }
 
     private Node searchResultRow(AniMedia media,int index){
-        String url=media.bannerImage()==null||media.bannerImage().isBlank()?media.coverImage():media.bannerImage();ImageView art=image(url,250,112);art.setPreserveRatio(false);
+        String url=media.bannerImage()==null||media.bannerImage().isBlank()?media.coverImage():media.bannerImage();ImageView art=coverImage(url,250,112);
         Label number=new Label(Integer.toString(index));number.getStyleClass().add("result-number");
         Label title=new Label(media.title());title.getStyleClass().add("result-title");
         Label nativeTitle=new Label(media.nativeTitle()==null?"":media.nativeTitle());nativeTitle.getStyleClass().add("result-native");
@@ -1179,7 +1179,7 @@ public final class MainWindow extends BorderPane {
                 Label num=new Label("EP "+ep.number());num.getStyleClass().add("episode-number");
                 Label title=new Label(ep.title()==null||ep.title().isBlank()?"Episode "+ep.number():ep.title());title.setWrapText(true);title.getStyleClass().add("episode-title");
                 Label flags=new Label((ep.group()==null?"":ep.group())+(ep.filler()?" · FILLER":""));flags.getStyleClass().add("episode-meta");
-                String artUrl=media.bannerImage()==null||media.bannerImage().isBlank()?media.coverImage():media.bannerImage();ImageView art=image(artUrl,210,112);art.setPreserveRatio(false);art.getStyleClass().add("episode-art");StackPane artwork=new StackPane(art,num);StackPane.setAlignment(num,Pos.TOP_LEFT);StackPane.setMargin(num,new Insets(8));
+                String artUrl=media.bannerImage()==null||media.bannerImage().isBlank()?media.coverImage():media.bannerImage();ImageView art=coverImage(artUrl,210,112);art.getStyleClass().add("episode-art");StackPane artwork=new StackPane(art,num);StackPane.setAlignment(num,Pos.TOP_LEFT);StackPane.setMargin(num,new Insets(8));
                 VBox info=new VBox(4,title,flags);HBox.setHgrow(info,Priority.ALWAYS);
                 Button mark=new Button("Mark watched");mark.getStyleClass().add("secondary-button");mark.setOnAction(e->markWatched(media,ep));
                 boolean playable=currentEpisodeLoad!=null&&(currentEpisodeLoad.source().descriptor().capabilities().directPlayback()
@@ -1802,7 +1802,7 @@ public final class MainWindow extends BorderPane {
     private static ImageView image(String url,double w,double h){ImageView v=new ImageView();v.setFitWidth(w);v.setFitHeight(h);v.setPreserveRatio(true);v.setSmooth(true);if(url!=null&&!url.isBlank())v.setImage(new Image(url,w,h,true,true,true));return v;}
     private static ImageView coverImage(String url,double w,double h){
         ImageView v=new ImageView();
-        v.setFitWidth(w);v.setFitHeight(h);v.setPreserveRatio(true);v.setSmooth(true);
+        v.setFitWidth(w);v.setFitHeight(h);v.setPreserveRatio(false);v.setSmooth(true);
         Rectangle clip=new Rectangle(w,h);clip.setArcWidth(6);clip.setArcHeight(6);v.setClip(clip);
         if(url!=null&&!url.isBlank()){
             Image img=new Image(url,true);v.setImage(img);
