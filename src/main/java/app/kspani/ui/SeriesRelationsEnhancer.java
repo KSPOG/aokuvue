@@ -25,7 +25,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -175,29 +174,32 @@ public final class SeriesRelationsEnhancer {
         Label eyebrow = new Label("SERIES TIMELINE");
         eyebrow.getStyleClass().add("section-kicker");
 
-        HBox cards = new HBox(9);
+        HBox cards = new HBox(7);
         cards.setAlignment(Pos.CENTER_RIGHT);
+        cards.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         for (RelationRef relation : relations) cards.getChildren().add(relationCard(relation));
 
-        VBox panel = new VBox(7, eyebrow, cards);
+        VBox panel = new VBox(5, eyebrow, cards);
         panel.setAlignment(Pos.BOTTOM_RIGHT);
-        panel.setMaxWidth(500);
-        panel.setPadding(new Insets(10));
+        // StackPane stretches resizable children by default. Force this overlay to hug its content
+        // instead of becoming a large dark rectangle across the hero.
+        panel.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        panel.setPadding(new Insets(7));
         panel.setStyle(
-                "-fx-background-color: rgba(8,8,14,.82);"
-                        + "-fx-border-color: rgba(168,162,199,.32);"
-                        + "-fx-border-radius: 10px;"
-                        + "-fx-background-radius: 10px;"
+                "-fx-background-color: rgba(8,8,14,.86);"
+                        + "-fx-border-color: rgba(168,162,199,.28);"
+                        + "-fx-border-radius: 8px;"
+                        + "-fx-background-radius: 8px;"
         );
         StackPane.setAlignment(panel, Pos.BOTTOM_RIGHT);
-        StackPane.setMargin(panel, new Insets(0, 18, 18, 0));
+        StackPane.setMargin(panel, new Insets(0, 14, 14, 0));
         return panel;
     }
 
     private Node relationCard(RelationRef relation) {
         ImageView cover = new ImageView();
-        cover.setFitWidth(58);
-        cover.setFitHeight(82);
+        cover.setFitWidth(46);
+        cover.setFitHeight(66);
         cover.setPreserveRatio(false);
         cover.getStyleClass().add("poster-art");
         if (relation.coverUrl() != null && !relation.coverUrl().isBlank()) {
@@ -210,8 +212,8 @@ public final class SeriesRelationsEnhancer {
 
         Label title = new Label(relation.title());
         title.setWrapText(true);
-        title.setMaxWidth(138);
-        title.setMaxHeight(42);
+        title.setMaxWidth(118);
+        title.setMaxHeight(34);
         title.getStyleClass().add("poster-title");
 
         StringBuilder metaText = new StringBuilder();
@@ -227,16 +229,16 @@ public final class SeriesRelationsEnhancer {
         Label meta = new Label(metaText.length() == 0 ? "Anime" : metaText.toString());
         meta.getStyleClass().add("poster-meta");
 
-        VBox copy = new VBox(4, relationLabel, title, meta);
+        VBox copy = new VBox(3, relationLabel, title, meta);
         copy.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(copy, Priority.ALWAYS);
 
-        HBox card = new HBox(9, cover, copy);
+        HBox card = new HBox(7, cover, copy);
         card.setAlignment(Pos.CENTER_LEFT);
-        card.setPrefWidth(218);
-        card.setMinWidth(218);
-        card.setMaxWidth(218);
-        card.setPadding(new Insets(7));
+        card.setPrefWidth(184);
+        card.setMinWidth(184);
+        card.setMaxWidth(184);
+        card.setPadding(new Insets(5));
         card.getStyleClass().add("media-card");
         card.setCursor(Cursor.HAND);
         card.setOnMouseClicked(event -> openRelation(relation));
