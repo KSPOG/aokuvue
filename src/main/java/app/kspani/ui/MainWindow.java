@@ -251,7 +251,7 @@ public final class MainWindow extends BorderPane {
         Label bell = new Label("♧"); bell.getStyleClass().add("top-icon");
         StackPane connectionIndicator = new StackPane(connectionDot);
         connectionIndicator.getStyleClass().add("connection-indicator");
-        connectionIndicator.setTooltip(connectionTooltip);
+        Tooltip.install(connectionIndicator, connectionTooltip);
         connectionIndicator.setMinSize(18,18);
         connectionIndicator.setPrefSize(18,18);
         accountAvatar.setFitWidth(34); accountAvatar.setFitHeight(34); accountAvatar.setPreserveRatio(true);
