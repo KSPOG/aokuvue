@@ -5,6 +5,7 @@ import app.kspani.app.AppContext;
 import app.kspani.app.FeedbackService;
 import app.kspani.domain.*;
 import app.kspani.player.PlayerSession;
+import app.kspani.player.EmbeddedPlayerStatus;
 import app.kspani.player.PlaybackProgressRepository;
 import app.kspani.player.PlayerSettings;
 import app.kspani.player.SubtitleCue;
@@ -128,6 +129,8 @@ public final class MainWindow extends BorderPane {
     private ListView<SourceEpisode> currentEpisodeList;
     private long episodeLoadGeneration;
     private long playerLoadGeneration;
+    private String automaticFailoverKey = "";
+    private final java.util.Set<String> failedPlaybackServers = new java.util.LinkedHashSet<>();
     private boolean suppressSourceChange;
     private String homeLoadError;
     private final CompletableFuture<Void> initialContentReady = new CompletableFuture<>();
@@ -1226,6 +1229,7 @@ public final class MainWindow extends BorderPane {
     }
 
     private void showPlayer(PlayerSession session) {
+        prepareAutomaticFailover(session);
         if ("embed".equalsIgnoreCase(session.playback().selectedVideo().container())) {
             showEmbeddedEpisodePlayer(session);
             return;
@@ -1396,7 +1400,8 @@ public final class MainWindow extends BorderPane {
     }
 
     private void showEmbeddedEpisodePlayer(PlayerSession session) {
-        playerLoadGeneration++;
+        prepareAutomaticFailover(session);
+        long loadGeneration=++playerLoadGeneration;
         exitPlayerFullScreen();
         app.player().setErrorAction(null);
         app.player().close();
@@ -1411,7 +1416,7 @@ public final class MainWindow extends BorderPane {
         engine.setCreatePopupHandler(features->null);
 
         Button back=new Button("‹ Back to episodes"); back.getStyleClass().add("secondary-button");
-        back.setOnAction(e->{engine.load("about:blank");page=Page.DETAILS;content.getChildren().setAll(detailsView(session.media()));});
+        back.setOnAction(e->{playerLoadGeneration++;engine.load("about:blank");page=Page.DETAILS;content.getChildren().setAll(detailsView(session.media()));});
         Label title=new Label(session.media().title()+" · Episode "+session.playback().episode().number());
         title.getStyleClass().add("player-title");
         Label server=new Label("Server: "+session.playback().resolved().server().name()); server.getStyleClass().add("player-meta");
@@ -1431,10 +1436,70 @@ public final class MainWindow extends BorderPane {
         URI uri=session.playback().selectedVideo().uri();
         status.setText("Opening Episode "+session.playback().episode().number()+" in the Aokuvue player…");
         engine.getLoadWorker().stateProperty().addListener((obs,oldState,newState)->{
-            if(newState==Worker.State.SUCCEEDED)status.setText("Playing Episode "+session.playback().episode().number()+".");
+            if(newState==Worker.State.SUCCEEDED){status.setText("Playing Episode "+session.playback().episode().number()+".");monitorEmbeddedPlayer(engine,session,loadGeneration,0);}
             else if(newState==Worker.State.FAILED){Throwable error=engine.getLoadWorker().getException();status.setText("Player failed: "+(error==null?"unknown error":root(error)));}
         });
         engine.load(uri.toString());
+    }
+
+    private void monitorEmbeddedPlayer(WebEngine engine,PlayerSession session,long loadGeneration,int attempt) {
+        if(loadGeneration!=playerLoadGeneration||attempt>=20)return;
+        PauseTransition check=new PauseTransition(Duration.millis(attempt==0?250:500));
+        check.setOnFinished(event->{
+            if(loadGeneration!=playerLoadGeneration)return;
+            String pageText="";
+            try { pageText=String.valueOf(engine.executeScript("document.body ? document.body.innerText : ''")); }
+            catch(RuntimeException ignored) { }
+            if(EmbeddedPlayerStatus.unavailable(pageText)){
+                tryNextPlayerServer(session,loadGeneration,"The provider reported that this video file is unavailable (410).");
+                return;
+            }
+            monitorEmbeddedPlayer(engine,session,loadGeneration,attempt+1);
+        });
+        check.play();
+    }
+
+    private void prepareAutomaticFailover(PlayerSession session) {
+        String key=session.media().id()+"|"+session.playback().source().descriptor().id()+"|"+session.playback().episode().number();
+        if(key.equals(automaticFailoverKey))return;
+        automaticFailoverKey=key;
+        failedPlaybackServers.clear();
+    }
+
+    private void tryNextPlayerServer(PlayerSession session,long loadGeneration,String reason) {
+        if(loadGeneration!=playerLoadGeneration)return;
+        failedPlaybackServers.add(session.playback().resolved().server().name().toLowerCase(java.util.Locale.ROOT));
+        status.setText(reason+" Trying another server…");
+        app.episodes().loadVideoServers(session.media(),session.playback()).whenComplete((servers,error)->Platform.runLater(()->{
+            if(loadGeneration!=playerLoadGeneration)return;
+            if(error!=null){status.setText("Alternate server lookup failed: "+root(error));return;}
+            PlaybackLanguage language=app.episodes().selectionFor(session.media()).languagePreference();
+            List<VideoServer> ranked=EpisodeLanguageSelector.rankServers(servers,language,null);
+            resolveNextPlayerServer(session,loadGeneration,ranked,0);
+        }));
+    }
+
+    private void resolveNextPlayerServer(PlayerSession session,long loadGeneration,List<VideoServer> servers,int index) {
+        if(loadGeneration!=playerLoadGeneration)return;
+        while(index<servers.size()&&failedPlaybackServers.contains(servers.get(index).name().toLowerCase(java.util.Locale.ROOT)))index++;
+        if(index>=servers.size()){
+            status.setText("This episode is unavailable on every server currently returned by the provider.");
+            return;
+        }
+        VideoServer candidate=servers.get(index);
+        int nextIndex=index+1;
+        status.setText("Trying "+candidate.name()+"…");
+        app.episodes().resolveServer(session.media(),session.playback(),candidate).whenComplete((resolution,error)->Platform.runLater(()->{
+            if(loadGeneration!=playerLoadGeneration)return;
+            if(error!=null){
+                failedPlaybackServers.add(candidate.name().toLowerCase(java.util.Locale.ROOT));
+                System.err.println("[Aokuvue][Playback] automatic server failover rejected server="+candidate.name()+" reason="+root(error));
+                resolveNextPlayerServer(session,loadGeneration,servers,nextIndex);
+                return;
+            }
+            System.out.println("[Aokuvue][Playback] automatic server failover selected server="+candidate.name());
+            showPlayer(new PlayerSession(session.media(),session.episodeLoad(),resolution));
+        }));
     }
 
     private void showMangaReader(AniMedia media) {
