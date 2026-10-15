@@ -39,6 +39,7 @@ public final class HttpMediaRelay implements AutoCloseable {
             "(KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36";
     private static final Pattern CONTENT_RANGE = Pattern.compile("(?i)^bytes\\s+(\\d+)-(\\d+)/(\\d+|\\*)$");
     private static final Pattern FIXED_RANGE = Pattern.compile("(?i)^bytes=(\\d+)-(\\d+)$");
+    private static final Pattern PROVIDER_AVC_LEVEL_50 = Pattern.compile("(?i)avc1\\.640032");
     private static final int IO_BUFFER_BYTES = 256 * 1024;
     private static final int PREFETCH_BYTES = 1024 * 1024;
     private static final int TRANSPORT_STREAM_PACKET_BYTES = 188;
@@ -294,7 +295,8 @@ public final class HttpMediaRelay implements AutoCloseable {
             if (isHlsManifest(target, contentType)) {
                 byte[] source;
                 try (InputStream in = response.body()) { source = in.readAllBytes(); }
-                String rewritten = rewriteHlsManifest(new String(source, StandardCharsets.UTF_8), target);
+                String rewritten = normalizeAvcLevel(
+                        rewriteHlsManifest(new String(source, StandardCharsets.UTF_8), target));
                 byte[] body = rewritten.getBytes(StandardCharsets.UTF_8);
                 Headers headers = exchange.getResponseHeaders();
                 headers.set("Content-Type", "application/vnd.apple.mpegurl; charset=utf-8");
@@ -315,6 +317,7 @@ public final class HttpMediaRelay implements AutoCloseable {
                     byte[] prefix = in.readNBytes(DISGUISED_SEGMENT_PROBE_BYTES);
                     int transportOffset = transportStreamOffset(prefix);
                     if (transportOffset >= 0) {
+                        int normalizedSpsHeaders = normalizeAvcSpsLevel(prefix, transportOffset);
                         long upstreamLength = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
                         long bodyLength = upstreamLength < 0 ? -1L : upstreamLength - transportOffset;
                         Headers headers = exchange.getResponseHeaders();
@@ -330,6 +333,7 @@ public final class HttpMediaRelay implements AutoCloseable {
                         if (requestNumber <= 20) {
                             System.out.println("[Aokuvue][MediaRelay] #" + requestNumber
                                     + " HLS disguised segment strippedBytes=" + transportOffset
+                                    + " normalizedSps=" + normalizedSpsHeaders
                                     + " host=" + safeHost(target));
                         }
                         return;
@@ -403,6 +407,48 @@ public final class HttpMediaRelay implements AutoCloseable {
             if (i < lines.length - 1) rewritten.append('\n');
         }
         return rewritten.toString();
+    }
+
+    /**
+     * The affected provider stream advertises AVC High Profile Level 5.0 for its 1080p/24
+     * rendition. The Windows JavaFX media backend rejects that provider signature before playback
+     * starts. Normalize only this exact signature to Level 4.1; other AVC profiles and levels are
+     * left untouched.
+     */
+    static String normalizeAvcLevel(String manifest) {
+        return PROVIDER_AVC_LEVEL_50.matcher(manifest == null ? "" : manifest)
+                .replaceAll("avc1.640029");
+    }
+
+    /**
+     * Applies the same compatibility normalization to SPS NAL units found in the initial TS
+     * probe block. The SPS emitted by the affected provider is near the start of every segment,
+     * before this block is forwarded to JavaFX.
+     */
+    static int normalizeAvcSpsLevel(byte[] bytes, int start) {
+        if (bytes == null || bytes.length < 8) return 0;
+        int changed = 0;
+        int from = Math.max(0, start);
+        for (int i = from; i < bytes.length - 7; i++) {
+            int nalIndex = -1;
+            if (bytes[i] == 0 && bytes[i + 1] == 0 && bytes[i + 2] == 1) {
+                nalIndex = i + 3;
+            } else if (bytes[i] == 0 && bytes[i + 1] == 0
+                    && bytes[i + 2] == 0 && bytes[i + 3] == 1) {
+                nalIndex = i + 4;
+            }
+            if (nalIndex < 0 || nalIndex + 3 >= bytes.length
+                    || (bytes[nalIndex] & 0x1f) != 7) continue;
+            int levelIndex = nalIndex + 3;
+            if ((bytes[nalIndex + 1] & 0xff) == 0x64
+                    && (bytes[nalIndex + 2] & 0xff) == 0x00
+                    && (bytes[levelIndex] & 0xff) == 0x32) {
+                bytes[levelIndex] = 0x29;
+                changed++;
+            }
+            i = levelIndex;
+        }
+        return changed;
     }
 
     private String relayHlsUri(URI base, String value) {

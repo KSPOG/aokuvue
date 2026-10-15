@@ -79,6 +79,27 @@ final class HttpMediaRelayHlsTest {
         }
     }
 
+    @Test
+    void normalizesOverDeclaredAvcLevelInManifestAndSps() {
+        assertEquals(
+                "#EXT-X-STREAM-INF:CODECS=\"avc1.640029,mp4a.40.2\"\n",
+                HttpMediaRelay.normalizeAvcLevel(
+                        "#EXT-X-STREAM-INF:CODECS=\"avc1.640032,mp4a.40.2\"\n"));
+        assertEquals(
+                "#EXT-X-I-FRAME-STREAM-INF:CODECS=\"avc1.64001e\"\n",
+                HttpMediaRelay.normalizeAvcLevel(
+                        "#EXT-X-I-FRAME-STREAM-INF:CODECS=\"avc1.64001e\"\n"));
+
+        byte[] segmentPrefix = {
+                0x47, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x01, 0x67, 0x64, 0x00, 0x32,
+                0x01, 0x02, 0x03, 0x04
+        };
+        assertEquals(1, HttpMediaRelay.normalizeAvcSpsLevel(segmentPrefix, 0));
+        assertEquals(0x29, segmentPrefix[11] & 0xff);
+        assertEquals(0, HttpMediaRelay.normalizeAvcSpsLevel(segmentPrefix, 0));
+    }
+
     private static String get(HttpClient client, URI uri) throws Exception {
         HttpResponse<String> response = client.send(HttpRequest.newBuilder(uri).GET().build(),
                 HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
