@@ -1230,7 +1230,7 @@ public final class MainWindow extends BorderPane {
             showEmbeddedEpisodePlayer(session);
             return;
         }
-        playerLoadGeneration++;
+        long loadGeneration=++playerLoadGeneration;
         page=Page.PLAYER;updateNav();
         BorderPane pane=new BorderPane();pane.getStyleClass().add("player-screen");
         Button back=new Button("‹ Back to details");back.getStyleClass().add("secondary-button");back.setOnAction(e->{playerLoadGeneration++;exitPlayerFullScreen();app.player().close();page=Page.DETAILS;content.getChildren().setAll(detailsView(session.media()));});
@@ -1251,7 +1251,7 @@ public final class MainWindow extends BorderPane {
         PlaybackLanguage playerLanguage=app.episodes().selectionFor(session.media()).languagePreference();
         List<PlaybackSource> qualityVideos=EpisodeLanguageSelector.rankVideos(session.playback().resolved().videos(),playerLanguage);
         ComboBox<String> quality=new ComboBox<>(FXCollections.observableArrayList(qualityVideos.stream().map(MainWindow::videoLabel).toList()));quality.setPrefWidth(190);
-        int qualityIndex=Math.max(0,Math.min(session.playback().selectedVideoIndex(),Math.max(0,qualityVideos.size()-1)));if(!qualityVideos.isEmpty())quality.getSelectionModel().select(qualityIndex);
+        int qualityIndex=qualityVideos.indexOf(session.playback().selectedVideo());if(qualityIndex<0)qualityIndex=0;if(!qualityVideos.isEmpty())quality.getSelectionModel().select(qualityIndex);
         List<SubtitleTrack> subtitleTracks=session.playback().resolved().subtitles();
         List<String> subtitleNames=new ArrayList<>();subtitleNames.add("Off");
         for(int i=0;i<subtitleTracks.size();i++){SubtitleTrack track=subtitleTracks.get(i);String lang=track.language()==null||track.language().isBlank()?"Subtitle "+(i+1):track.language();subtitleNames.add(lang+(track.defaultTrack()?" · default":""));}
@@ -1261,7 +1261,7 @@ public final class MainWindow extends BorderPane {
         Button full=new Button("⛶");full.setTooltip(new Tooltip("Fullscreen"));
         rewind.setOnAction(e->app.player().seekRelative(-app.player().settings().seekSeconds()));forward.setOnAction(e->app.player().seekRelative(app.player().settings().seekSeconds()));play.setOnAction(e->app.player().playPause());
         prev.setOnAction(e->playAdjacent(session,-1));next.setOnAction(e->playAdjacent(session,1));
-        quality.setOnAction(e->{int idx=quality.getSelectionModel().getSelectedIndex();if(idx<0||idx>=qualityVideos.size()||idx==session.playback().selectedVideoIndex())return;app.episodes().setPreferredQuality(session.media(),qualityVideos.get(idx).quality(),idx);PlaybackResolution changed=new PlaybackResolution(session.playback().source(),session.playback().series(),session.playback().episode(),session.playback().resolved(),qualityVideos.get(idx),idx,session.playback().selectedSubtitleIndex());showPlayer(new PlayerSession(session.media(),session.episodeLoad(),changed));});
+        quality.setOnAction(e->{int idx=quality.getSelectionModel().getSelectedIndex();if(idx<0||idx>=qualityVideos.size())return;PlaybackSource selected=qualityVideos.get(idx);if(selected.equals(session.playback().selectedVideo()))return;app.episodes().setPreferredQuality(session.media(),selected.quality(),idx);PlaybackResolution changed=new PlaybackResolution(session.playback().source(),session.playback().series(),session.playback().episode(),session.playback().resolved(),selected,idx,session.playback().selectedSubtitleIndex());showPlayer(new PlayerSession(session.media(),session.episodeLoad(),changed));});
         HBox timeline=new HBox(12,time,seek);timeline.setAlignment(Pos.CENTER_LEFT);HBox.setHgrow(seek,Priority.ALWAYS);timeline.getStyleClass().add("player-timeline");
         String posterUrl=session.media().bannerImage()==null||session.media().bannerImage().isBlank()?session.media().coverImage():session.media().bannerImage();ImageView thumb=coverImage(posterUrl,145,88);thumb.getStyleClass().add("player-cover");
         Label eyebrow=new Label("A O K U V U E   S E L E C T I O N");eyebrow.getStyleClass().add("section-kicker");Label mediaTitle=new Label(session.media().title());mediaTitle.getStyleClass().add("player-media-title");Label episodeLabel=new Label("Episode "+session.playback().episode().number()+"  ·  "+safe(session.playback().episode().title()));episodeLabel.getStyleClass().add("player-meta");VBox mediaCopy=new VBox(4,eyebrow,mediaTitle,episodeLabel);mediaCopy.setPrefWidth(300);
@@ -1274,6 +1274,26 @@ public final class MainWindow extends BorderPane {
         content.getChildren().setAll(pane);
         configurePlayerFullScreen(pane,null,bottom,full);
         try {
+            PlaybackSource browserFallback=session.playback().resolved().videos().stream()
+                    .filter(source->"embed".equalsIgnoreCase(source.container()))
+                    .findFirst().orElse(null);
+            boolean[] fallbackStarted={false};
+            app.player().setErrorAction(error->{
+                if(browserFallback==null||fallbackStarted[0]||loadGeneration!=playerLoadGeneration)return;
+                fallbackStarted[0]=true;
+                String reason=error==null?"unknown native media error":error.getType()+": "+error.getMessage();
+                System.err.println("[Aokuvue][Playback] Native playback rejected the stream; opening browser fallback. reason="+reason);
+                Platform.runLater(()->{
+                    if(loadGeneration!=playerLoadGeneration)return;
+                    int fallbackIndex=session.playback().resolved().videos().indexOf(browserFallback);
+                    PlaybackResolution changed=new PlaybackResolution(
+                            session.playback().source(),session.playback().series(),session.playback().episode(),
+                            session.playback().resolved(),browserFallback,fallbackIndex,
+                            session.playback().selectedSubtitleIndex());
+                    status.setText("Native decoder rejected this stream. Opening the browser fallback…");
+                    showEmbeddedEpisodePlayer(new PlayerSession(session.media(),session.episodeLoad(),changed));
+                });
+            });
             app.player().setEndOfMediaAction(()->{
                 if(app.player().settings().autoNextEpisode())Platform.runLater(()->playAdjacent(session,1));
             });
@@ -1377,6 +1397,8 @@ public final class MainWindow extends BorderPane {
 
     private void showEmbeddedEpisodePlayer(PlayerSession session) {
         playerLoadGeneration++;
+        exitPlayerFullScreen();
+        app.player().setErrorAction(null);
         app.player().close();
         app.playbackProgress().touch(
                 session.media().id(), session.playback().source().descriptor().id(),
@@ -1823,7 +1845,7 @@ public final class MainWindow extends BorderPane {
     private Node errorCard(String text){Label l=new Label(text);l.setWrapText(true);VBox v=new VBox(l);v.setPadding(new Insets(30));v.getStyleClass().add("empty-state");return v;}
     private static String trim(String s,int max){if(s==null)return"";return s.length()<=max?s:s.substring(0,Math.max(0,max-1)).trim()+"…";}
     private static String safe(Object o){return o==null?"":o.toString();}
-    private static String videoLabel(PlaybackSource source){String quality=source.quality()==null?"Auto":source.quality()+"p";String container=source.container()==null||source.container().isBlank()?"":(" · "+source.container().toUpperCase());String label=source.label()==null||source.label().isBlank()?"":(" · "+source.label());return quality+container+label;}
+    private static String videoLabel(PlaybackSource source){if("embed".equalsIgnoreCase(source.container()))return source.label()==null||source.label().isBlank()?"Browser fallback":source.label();String quality=source.quality()==null?"Auto":source.quality()+"p";String container=source.container()==null||source.container().isBlank()?"":(" · "+source.container().toUpperCase());String label=source.label()==null||source.label().isBlank()?"":(" · "+source.label());return quality+container+label;}
     private static String meta(AniMedia m){List<String>x=new ArrayList<>();if(m.format()!=null&&!m.format().isBlank())x.add(m.format().replace('_',' '));if(m.averageScore()!=null)x.add("★ "+m.averageScore()+"%");if(m.type()==MediaType.MANGA&&m.totalChapters()!=null)x.add(m.totalChapters()+" chapters");else if(m.totalEpisodes()!=null)x.add(m.totalEpisodes()+" episodes");if(m.releaseStatus()!=null&&!m.releaseStatus().isBlank())x.add(m.releaseStatus().replace('_',' '));return String.join(" · ",x);}
     private static void addInfo(GridPane g,int row,String a,String b,String c,String d){Label la=new Label(a),lb=new Label(b==null?"":b),lc=new Label(c),ld=new Label(d==null?"":d);la.getStyleClass().add("info-label");lc.getStyleClass().add("info-label");lb.setWrapText(true);ld.setWrapText(true);g.addRow(row,la,lb,lc,ld);}
     private void openUri(URI uri){if(uri==null)return;try{Desktop.getDesktop().browse(uri);}catch(Exception e){status.setText("Unable to open browser: "+root(e));}}

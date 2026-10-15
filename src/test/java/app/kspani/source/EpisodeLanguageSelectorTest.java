@@ -60,6 +60,21 @@ class EpisodeLanguageSelectorTest {
         assertEquals(PlaybackLanguage.ENGLISH_DUB, selection.languagePreference());
     }
 
+    @Test
+    void browserFallbackAlwaysRanksAfterNativeVideoVariants() {
+        PlaybackSource browser = new PlaybackSource(
+                URI.create("https://player.example.test/embed/1"), null, "embed", null,
+                "English Dub browser fallback", Map.of());
+        PlaybackSource nativeVideo = new PlaybackSource(
+                URI.create("https://cdn.example.test/master.m3u8"), null, "hls", null,
+                "Native stream", Map.of());
+
+        List<PlaybackSource> ranked = EpisodeLanguageSelector.rankVideos(
+                List.of(browser, nativeVideo), PlaybackLanguage.ENGLISH_DUB);
+
+        assertEquals(List.of(nativeVideo, browser), ranked);
+    }
+
     private static SourceEpisode ep(String number, String group, String id) {
         return new SourceEpisode("test", "series", id, number, "Episode " + number, "", "", false, group, Map.of());
     }

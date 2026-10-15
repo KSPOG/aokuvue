@@ -6,6 +6,7 @@ import app.kspani.config.AppConfig;
 import app.kspani.source.PlaybackSource;
 import javafx.application.Platform;
 import javafx.scene.media.Media;
+import javafx.scene.media.MediaException;
 import javafx.scene.media.MediaPlayer;
 import javafx.util.Duration;
 
@@ -31,6 +32,7 @@ public final class PlayerController implements AutoCloseable {
     private boolean completionHandled;
     private long lastSavedAt;
     private Consumer<String> status = ignored -> {};
+    private Consumer<MediaException> errorAction = ignored -> {};
     private Runnable endOfMediaAction = () -> {};
 
     public PlayerController(
@@ -50,8 +52,13 @@ public final class PlayerController implements AutoCloseable {
         status = consumer == null ? ignored -> {} : consumer;
     }
 
+    public void setErrorAction(Consumer<MediaException> consumer) {
+        errorAction = consumer == null ? ignored -> {} : consumer;
+    }
+
     public MediaPlayer load(PlayerSession newSession) {
         disposeCurrent();
+        Consumer<MediaException> currentErrorAction = errorAction;
         this.session = newSession;
         this.completionHandled = false;
         this.lastSavedAt = 0L;
@@ -131,6 +138,11 @@ public final class PlayerController implements AutoCloseable {
             var error = player.getError();
             System.err.println("[Aokuvue][MediaPlayer] " + (error == null ? "Unknown" : error.getType() + ": " + error.getMessage()));
             status.accept("Player error: " + (error == null ? "Unknown" : error.getMessage()));
+            try {
+                currentErrorAction.accept(error);
+            } catch (RuntimeException callbackFailure) {
+                System.err.println("[Aokuvue][MediaPlayer] Error callback failed: " + callbackFailure.getMessage());
+            }
         });
         return player;
     }

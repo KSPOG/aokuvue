@@ -43,9 +43,14 @@ public final class EpisodeLanguageSelector {
         PlaybackLanguage pref = preference == null ? PlaybackLanguage.AUTO : preference;
         List<PlaybackSource> ranked = new ArrayList<>(videos);
         ranked.sort(Comparator
-                .comparingInt((PlaybackSource v) -> videoLanguageScore(v, pref)).reversed()
+                .comparingInt((PlaybackSource v) -> isEmbeddedFallback(v) ? 0 : 1).reversed()
+                .thenComparing(Comparator.comparingInt((PlaybackSource v) -> videoLanguageScore(v, pref)).reversed())
                 .thenComparing(Comparator.comparingInt(PlaybackSource::qualityOrZero).reversed()));
         return List.copyOf(ranked);
+    }
+
+    private static boolean isEmbeddedFallback(PlaybackSource video) {
+        return video != null && "embed".equalsIgnoreCase(video.container());
     }
 
     public static Integer englishSubtitleIndex(List<SubtitleTrack> subtitles, Integer savedIndex) {

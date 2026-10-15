@@ -71,7 +71,7 @@ final class AnikotoAnimeSourceTest {
         var resolved = AnikotoAnimeSource.parsePlayerSources(
                 server, URI.create("https://megaplay.buzz/stream/s-2/1/sub"), json);
 
-        assertEquals(1, resolved.videos().size());
+        assertEquals(2, resolved.videos().size());
         assertEquals("hls", resolved.videos().get(0).container());
         assertEquals(
                 URI.create("https://cdn.example/anime/master.m3u8"),
@@ -79,6 +79,8 @@ final class AnikotoAnimeSourceTest {
         assertEquals(
                 "https://megaplay.buzz/",
                 resolved.videos().get(0).headers().get("Referer"));
+        assertEquals("embed", resolved.videos().get(1).container());
+        assertEquals(URI.create("https://megaplay.buzz/stream/s-2/1/sub"), resolved.videos().get(1).uri());
         assertEquals(1, resolved.subtitles().size());
         assertEquals("English", resolved.subtitles().get(0).language());
         assertTrue(resolved.subtitles().get(0).defaultTrack());
@@ -110,11 +112,12 @@ final class AnikotoAnimeSourceTest {
         var resolved = AnikotoAnimeSource.parsePlayerSources(
                 server, URI.create("https://megaplay.buzz/stream/s-2/1/sub"), json);
 
-        assertEquals(3, resolved.videos().size());
+        assertEquals(4, resolved.videos().size());
         assertEquals("hls", resolved.videos().get(0).container());
         assertEquals("mp4", resolved.videos().get(1).container());
         assertEquals(Integer.valueOf(1080), resolved.videos().get(1).quality());
         assertEquals(Integer.valueOf(720), resolved.videos().get(2).quality());
+        assertEquals("embed", resolved.videos().get(3).container());
         assertEquals("https://megaplay.buzz", resolved.videos().get(0).headers().get("Origin"));
         assertEquals(1, resolved.subtitles().size());
         assertEquals("English", resolved.subtitles().get(0).language());

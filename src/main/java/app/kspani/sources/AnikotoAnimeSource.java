@@ -278,6 +278,19 @@ public final class AnikotoAnimeSource implements AnimeSource {
                             + (fields.isBlank() ? "." : " (response fields: " + fields + ")."));
         }
 
+        // Keep MegaPlay's own browser player as the final fallback. Some otherwise valid HLS
+        // variants use transport-stream details that the platform JavaFX/GStreamer backend
+        // rejects with ERROR_MEDIA_INVALID. The native variants stay first so normal playback,
+        // subtitles, resume tracking, and keyboard controls remain the preferred path.
+        videos.add(new PlaybackSource(
+                embed,
+                null,
+                "embed",
+                null,
+                "Browser fallback",
+                Map.of()
+        ));
+
         List<SubtitleTrack> subtitles = new ArrayList<>();
         Set<String> seenSubtitles = new LinkedHashSet<>();
         collectSubtitleTracks(json, embed, subtitles, seenSubtitles);
